@@ -16,70 +16,67 @@ use PharmaFEFOV2\Middleware\RoleMiddleware;
 
 $route = $_GET['route'] ?? 'home';
 
+$authContr = new AuthController();
+$homeContr = new HomeController();
+$dashboardContr = new DashboardController();
+$stockContr = new StockController();
+$reportContr = new ReportController();
+
+
 switch ($route) {
     case 'home':
-        $controller = new HomeController();
-        $controller->index();
+        $homeContr->index();
         break;
     case 'login':
-        $controller = new AuthController();
-        $controller->login();
+        $authContr->login();
         break;
 
     case 'logout':
         AuthMiddleware::requireAuth();
-        $controller = new AuthController();
-        $controller->logout();
+        $authContr->logout();
         break;
 
 
     case 'dashboard':
         AuthMiddleware::requireAuth();
-        $controller = new DashboardController();
-        $controller->index();
+        $dashboardContr->index();
         break;
 
 
     case 'stock-receive':
         AuthMiddleware::requireAuth();
         RoleMiddleware::requireRole('preparator');
-        $controller = new StockController();
-        $controller->receive();
+        $stockContr->receive();
         break;
 
     case 'stock-dispatch':
         AuthMiddleware::requireAuth();
         RoleMiddleware::requireRole('preparator');
-        $controller = new StockController();
-        $controller->dispatch();
+        $stockContr->dispatch();
         break;
 
     case 'stock-alerts':
         AuthMiddleware::requireAuth();
         RoleMiddleware::requireRole('pharmacist');
-        $controller = new StockController();
-        $controller->alerts();
+        $stockContr->alerts();
         break;
 
     case 'stock-expired':
         AuthMiddleware::requireAuth();
         RoleMiddleware::requireRole('pharmacist');
-        $controller = new StockController();
-        $controller->markAsExpired();
+        $stockContr->markAsExpired();
         break;
 
     case 'reports':
         AuthMiddleware::requireAuth();
         RoleMiddleware::requireRole('pharmacist');
-        $controller = new ReportController();
-        $controller->index();
+        $reportContr->index();
         break;
 
     case 'report-financial':
         AuthMiddleware::requireAuth();
         RoleMiddleware::requireRole('admin');
-        $controller = new ReportController();
-        $controller->financial();
+        $reportContr->financial();
         break;
 
     default:

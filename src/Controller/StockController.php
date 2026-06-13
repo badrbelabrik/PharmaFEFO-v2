@@ -129,12 +129,69 @@ class StockController
     }
 
     public function alerts(): void {
-        // Will be implemented later
-        echo "Alerts method - Coming soon";
+        $criticalBatches = $this->stockBatchRepo->findCriticalBatches();
+
+        $warningBatches = $this->stockBatchRepo->findWarningBatches();
+
+        $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
+        $userRole = $_SESSION['user_role'] ?? 'preparator';
+        $currentPage = 'alerts';
+
+        require_once __DIR__ . '/../../templates/dashboard/alerts.php';
     }
 
     public function markAsExpired(): void {
-        // Will be implemented later
-        echo "Mark as expired - Coming soon";
+        // Check if user has permission (pharmacist or admin)
+        $userRole = $_SESSION['user_role'] ?? 'preparer';
+        if (!in_array($userRole, ['pharmacist', 'admin'])) {
+            $_SESSION['error'] = "You don't have permission to mark products as expired.";
+            header('Location: index.php?route=dashboard');
+            exit();
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $batchId = (int)($_POST['batch_id'] ?? 0);
+            $batch = $this->stockBatchRepo->findById($batchId);
+
+            if (!$batch) {
+                $_SESSION['error'] = "Batch not found.";
+                header('Location: index.php?route=stock-alerts');
+                exit();
+            }
+            
+            $success = $this->stockBatchRepo->markAsExpired($batch);
+
+            if ($success) {
+                $_SESSION['success'] = "✅ Batch {$batch->getLotNumber()} has been marked as expired and removed from active stock.";
+
+                // Create notification about expired batch
+                $this->stockBatchRepo->createNotification(
+                    $batch->getId(),
+                    "Batch {$batch->getLotNumber()} for {$batch->getProduct()->getName()} has been marked as expired and destroyed."
+                );
+            } else {
+                $_SESSION['error'] = "Failed to mark batch as expired. Please try again.";
+            }
+
+            // Redirect back to alerts page
+            header('Location: index.php?route=stock-alerts');
+            exit();
+        }
+
+        // If GET request, show confirmation form
+        $batchId = (int)($_GET['id'] ?? 0);
+        $batch = $this->stockBatchRepo->findById($batchId);
+
+        if (!$batch) {
+            $_SESSION['error'] = "Batch not found.";
+            header('Location: index.php?route=stock-alerts');
+            exit();
+        }
+
+        $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
+        $userRole = $_SESSION['user_role'] ?? 'preparer';
+        $currentPage = 'alerts';
+
+        require_once __DIR__ . '/../../templates/dashboard/mark-expired.php';
     }
 }
