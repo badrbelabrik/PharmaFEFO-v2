@@ -270,7 +270,6 @@ class StockBatchRepository
             ]);
 
             if ($result) {
-                // Record stock movement (expired)
                 $this->recordStockMovement($batch->getId(), 'out', $batch->getQuantity(), 'Expired');
                 return true;
             }
@@ -284,9 +283,10 @@ class StockBatchRepository
     private function recordStockMovement(int $batchId, string $type, int $quantity, string $notes = ''): bool {
         try {
             $sql = "INSERT INTO stockmovements (type, quantity, movement_date, id_batch, id_user)
-                    VALUES (:type, :quantity, :movement_date, :id_batch, :id_user)";
+                VALUES (:type, :quantity, :movement_date, :id_batch, :id_user)";
 
             $userId = $_SESSION['user_id'] ?? null;
+
 
             $stmt = $this->connection->prepare($sql);
             return $stmt->execute([
@@ -304,19 +304,43 @@ class StockBatchRepository
 
     public function dispense(StockBatch $batch, int $quantity): bool {
         try {
-            $oldQuantity = $batch->getQuantity();
-            $newQuantity = $oldQuantity - $quantity;
+            $newQuantity = $batch->getQuantity() - $quantity;
 
             if ($newQuantity < 0) {
-                error_log("Error in dispense: Insufficient stock. Available: {$oldQuantity}, Requested: {$quantity}");
                 return false;
             }
 
             $batch->setQuantity($newQuantity);
-            $this->updateQuantity($batch);
 
-            // Record stock movement (OUT)
-            return $this->recordStockMovement($batch->getId(), 'out', $quantity, 'Dispensed');
+            // Update status based on expiration
+            $daysLeft = StockBatchService::getDaysUntilExpiration($batch);
+            if ($daysLeft <= 30) {
+                $batch->setStatus(BatchStatus::CRITICAL);
+            } elseif ($daysLeft <= 90) {
+                $batch->setStatus(BatchStatus::WARNING);
+            } else {
+                $batch->setStatus(BatchStatus::ACTIVE);
+            }
+
+            // Update database
+            $sql = "UPDATE stockbatches 
+                SET quantity = :quantity, status = :status
+                WHERE id = :id";
+
+            $stmt = $this->connection->prepare($sql);
+            $result = $stmt->execute([
+                ':quantity' => $batch->getQuantity(),
+                ':status' => $batch->getStatus()->value,
+                ':id' => $batch->getId()
+            ]);
+
+            if ($result) {
+                // Record stock movement
+                $this->recordStockMovement($batch->getId(), 'out', $quantity);
+                return true;
+            }
+
+            return false;
         } catch (PDOException $e) {
             error_log("Error in dispense: " . $e->getMessage());
             return false;

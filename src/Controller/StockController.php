@@ -125,7 +125,89 @@ class StockController
     }
 
     public function dispatch(): void {
-        echo "Dispatch method - FEFO dispensing coming soon";
+        // Handle POST request (actual dispensation)
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleDispatchPost();
+            return;
+        }
+
+        // Handle GET request (show form with selected product)
+        $this->showDispatchForm();
+    }
+
+    private function showDispatchForm(): void {
+        $products = $this->productRepo->findAll();
+        $selectedProductId = (int)($_GET['product_id'] ?? 0);
+        $selectedBatch = null;
+        $daysLeft = null;
+
+        if ($selectedProductId > 0) {
+            $selectedBatch = $this->stockBatchRepo->findEarliestExpiringBatch($selectedProductId);
+            if ($selectedBatch) {
+                $daysLeft = StockBatchService::getDaysUntilExpiration($selectedBatch);
+            }
+        }
+
+        $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
+        $userRole = $_SESSION['user_role'] ?? 'preparer';
+        $currentPage = 'dispatch';
+
+        require_once __DIR__ . '/../../templates/dashboard/dispatch.php';
+    }
+
+    private function handleDispatchPost(): void {
+        $batchId = (int)($_POST['batch_id'] ?? 0);
+        $quantity = (int)($_POST['quantity'] ?? 0);
+        $productId = (int)($_POST['product_id'] ?? 0);
+
+        // Validate inputs
+        $errors = [];
+
+        if ($batchId <= 0) {
+            $errors[] = "No batch selected.";
+        }
+
+        if ($quantity <= 0) {
+            $errors[] = "Quantity must be greater than 0.";
+        }
+
+        $batch = null;
+        if ($batchId > 0) {
+            $batch = $this->stockBatchRepo->findById($batchId);
+        }
+
+        if (!$batch) {
+            $errors[] = "Batch not found.";
+        } elseif ($quantity > $batch->getQuantity()) {
+            $errors[] = "Insufficient stock. Maximum available: {$batch->getQuantity()} units.";
+        }
+
+        // If errors, store in session and redirect back
+        if (!empty($errors)) {
+            $_SESSION['error'] = implode(" ", $errors);
+            header("Location: index.php?route=stock-dispatch&product_id={$productId}");
+            exit();
+        }
+
+        // Dispense using FEFO rule
+        $success = $this->stockBatchRepo->dispense($batch, $quantity);
+
+        if ($success) {
+            $_SESSION['success'] = "✅ Dispensed {$quantity} units of {$batch->getProduct()->getName()} (Lot: {$batch->getLotNumber()})";
+
+            // Check if batch is now low stock
+            if ($batch->getQuantity() <= 5) {
+                $this->stockBatchRepo->createNotification(
+                    $batch->getId(),
+                    "Low stock alert: {$batch->getProduct()->getName()} (Lot: {$batch->getLotNumber()}) has only {$batch->getQuantity()} units remaining."
+                );
+            }
+        } else {
+            $_SESSION['error'] = "Failed to dispense. Please try again.";
+        }
+
+        header("Location: index.php?route=stock-dispatch");
+        exit();
     }
 
     public function alerts(): void {
@@ -141,7 +223,6 @@ class StockController
     }
 
     public function markAsExpired(): void {
-        // Check if user has permission (pharmacist or admin)
         $userRole = $_SESSION['user_role'] ?? 'preparer';
         if (!in_array($userRole, ['pharmacist', 'admin'])) {
             $_SESSION['error'] = "You don't have permission to mark products as expired.";
@@ -158,13 +239,12 @@ class StockController
                 header('Location: index.php?route=stock-alerts');
                 exit();
             }
-            
+
             $success = $this->stockBatchRepo->markAsExpired($batch);
 
             if ($success) {
                 $_SESSION['success'] = "✅ Batch {$batch->getLotNumber()} has been marked as expired and removed from active stock.";
 
-                // Create notification about expired batch
                 $this->stockBatchRepo->createNotification(
                     $batch->getId(),
                     "Batch {$batch->getLotNumber()} for {$batch->getProduct()->getName()} has been marked as expired and destroyed."
@@ -173,12 +253,10 @@ class StockController
                 $_SESSION['error'] = "Failed to mark batch as expired. Please try again.";
             }
 
-            // Redirect back to alerts page
             header('Location: index.php?route=stock-alerts');
             exit();
         }
 
-        // If GET request, show confirmation form
         $batchId = (int)($_GET['id'] ?? 0);
         $batch = $this->stockBatchRepo->findById($batchId);
 
