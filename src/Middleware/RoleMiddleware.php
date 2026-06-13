@@ -1,18 +1,45 @@
 <?php
 
-namespace PharmaFEFOV2\Middleware;
 
-use PharmaFEFOV2\Enum\UserRole;
+
+namespace PharmaFEFOV2\Middleware;
 
 class RoleMiddleware
 {
     private static array $roleHierarchy = [
-        'preparator' => 1,
+        'preparer' => 1,
         'pharmacist' => 2,
         'admin' => 3
     ];
 
-    public static function hasRole(string $requiredRole): bool
+    public static function hasRole($requiredRoles): bool
+    {
+        if (!AuthMiddleware::isAuthenticated()) {
+            return false;
+        }
+
+        $userRole = $_SESSION['user_role'] ?? null;
+
+        if (!$userRole) {
+            return false;
+        }
+
+        if (!is_array($requiredRoles)) {
+            $requiredRoles = [$requiredRoles];
+        }
+
+        return in_array($userRole, $requiredRoles);
+    }
+
+    public static function requireRole($requiredRoles): void
+    {
+        if (!self::hasRole($requiredRoles)) {
+            header('Location: index.php?route=dashboard');
+            exit();
+        }
+    }
+
+    public static function hasRoleHierarchy(string $requiredRole): bool
     {
         if (!AuthMiddleware::isAuthenticated()) {
             return false;
@@ -30,9 +57,10 @@ class RoleMiddleware
         return $userLevel >= $requiredLevel;
     }
 
-    public static function requireRole(string $requiredRole): void
+
+    public static function requireRoleHierarchy(string $requiredRole): void
     {
-        if (!self::hasRole($requiredRole)) {
+        if (!self::hasRoleHierarchy($requiredRole)) {
             header('Location: index.php?route=dashboard');
             exit();
         }

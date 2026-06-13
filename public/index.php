@@ -10,9 +10,11 @@ use PharmaFEFOV2\Controller\AuthController;
 use PharmaFEFOV2\Controller\DashboardController;
 use PharmaFEFOV2\Controller\HomeController;
 use PharmaFEFOV2\Controller\StockController;
+use PharmaFEFOV2\Controller\AdminController;
 use PharmaFEFOV2\Controller\ReportController;
 use PharmaFEFOV2\Middleware\AuthMiddleware;
 use PharmaFEFOV2\Middleware\RoleMiddleware;
+
 
 $route = $_GET['route'] ?? 'home';
 
@@ -21,12 +23,13 @@ $homeContr = new HomeController();
 $dashboardContr = new DashboardController();
 $stockContr = new StockController();
 $reportContr = new ReportController();
-
+$adminContr = new AdminController();
 
 switch ($route) {
     case 'home':
         $homeContr->index();
         break;
+
     case 'login':
         $authContr->login();
         break;
@@ -36,48 +39,78 @@ switch ($route) {
         $authContr->logout();
         break;
 
-
     case 'dashboard':
         AuthMiddleware::requireAuth();
         $dashboardContr->index();
         break;
 
-
     case 'stock-receive':
         AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRole('preparator');
+        RoleMiddleware::requireRoleHierarchy('preparer');  // preparer, pharmacist, admin
         $stockContr->receive();
         break;
 
     case 'stock-dispatch':
         AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRole('preparator');
+        RoleMiddleware::requireRoleHierarchy('preparer');  // preparer, pharmacist, admin
         $stockContr->dispatch();
         break;
 
     case 'stock-alerts':
         AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRole('pharmacist');
+        RoleMiddleware::requireRole(['pharmacist', 'admin']);  // pharmacist OR admin
         $stockContr->alerts();
         break;
 
     case 'stock-expired':
         AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRole('pharmacist');
+        RoleMiddleware::requireRole(['pharmacist', 'admin']);  // pharmacist OR admin
         $stockContr->markAsExpired();
+        break;
+
+    case 'stock-return':
+        AuthMiddleware::requireAuth();
+        RoleMiddleware::requireRole(['pharmacist', 'admin']);
+        $stockContr->returnToSupplier();
         break;
 
     case 'reports':
         AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRole('pharmacist');
+        RoleMiddleware::requireRole(['pharmacist', 'admin']);
         $reportContr->index();
         break;
 
     case 'report-financial':
         AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRole('admin');
+        RoleMiddleware::requireRole('admin');  // Only admin
         $reportContr->financial();
         break;
+
+
+    case 'admin-users':
+        AuthMiddleware::requireAuth();
+        RoleMiddleware::requireRole('admin');
+        $adminContr->users();
+        break;
+
+    case 'admin-user-create':
+        AuthMiddleware::requireAuth();
+        RoleMiddleware::requireRole('admin');
+        $adminContr->createUser();
+        break;
+
+    case 'admin-user-edit':
+        AuthMiddleware::requireAuth();
+        RoleMiddleware::requireRole('admin');
+        $adminContr->editUser();
+        break;
+
+    case 'admin-user-delete':
+        AuthMiddleware::requireAuth();
+        RoleMiddleware::requireRole('admin');
+        $adminContr->deleteUser();
+        break;
+
 
     default:
         http_response_code(404);

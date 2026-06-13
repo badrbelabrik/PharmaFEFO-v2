@@ -12,7 +12,7 @@ $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?
 </head>
 <body class="h-full font-sans antialiased text-slate-900">
 <div class="flex min-h-screen">
-    <aside class="w-64 bg-slate-900 text-white flex flex-col p-4 shrink-0">
+    <aside class="w-64 bg-slate-900 text-white flex flex-col h-screen sticky top-0 p-4 shrink-0">
         <!-- Logo -->
         <div class="flex items-center space-x-2 px-2 py-3 mb-6 border-b border-slate-800">
             <span class="text-emerald-500 text-2xl">⚕️</span>
