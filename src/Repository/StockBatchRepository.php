@@ -212,7 +212,6 @@ class StockBatchRepository
 
             if ($result) {
                 $batch->setId((int)$this->connection->lastInsertId());
-                // Record stock movement (IN)
                 $this->recordStockMovement($batch->getId(), 'in', $batch->getQuantity());
                 return $batch;
             }
@@ -225,10 +224,8 @@ class StockBatchRepository
 
     public function updateQuantity(StockBatch $batch): bool {
         try {
-            // Calculate days until expiration using service
             $daysLeft = StockBatchService::getDaysUntilExpiration($batch);
-
-            // Auto-update status based on expiration
+            
             if ($daysLeft < 0) {
                 $batch->setStatus(BatchStatus::EXPIRED);
             } elseif ($daysLeft <= 30) {
@@ -319,7 +316,7 @@ class StockBatchRepository
             } elseif ($daysLeft <= 90) {
                 $batch->setStatus(BatchStatus::WARNING);
             } else {
-                $batch->setStatus(BatchStatus::ACTIVE);
+                $batch->setStatus(BatchStatus::OK);
             }
 
             // Update database
