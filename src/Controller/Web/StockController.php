@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace PharmaFEFOV2\Controller;
+namespace Controller\Web;
 
 use DateTime;
-use PharmaFEFOV2\Repository\StockBatchRepository;
-use PharmaFEFOV2\Repository\ProductRepository;
 use PharmaFEFOV2\Entity\StockBatch;
 use PharmaFEFOV2\Enum\BatchStatus;
+use PharmaFEFOV2\Repository\ProductRepository;
+use PharmaFEFOV2\Repository\StockBatchRepository;
 use PharmaFEFOV2\Service\StockBatchService;
 
 class StockController
@@ -34,7 +34,7 @@ class StockController
         $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
         $userRole = $_SESSION['user_role'] ?? 'preparator';
 
-        require_once __DIR__ . '/../../templates/dashboard/receive.php';
+        require_once __DIR__ . '/../../../templates/dashboard/receive.php';
     }
 
     private function handleReceivePost(): void {
@@ -121,7 +121,7 @@ class StockController
         $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
         $userRole = $_SESSION['user_role'] ?? 'preparator';
         $errorMessage = "Please fix the errors below.";
-        require_once __DIR__ . '/../../templates/dashboard/receive.php';
+        require_once __DIR__ . '/../../../templates/dashboard/receive.php';
     }
 
     public function dispatch(): void {
@@ -152,7 +152,7 @@ class StockController
         $userRole = $_SESSION['user_role'] ?? 'preparer';
         $currentPage = 'dispatch';
 
-        require_once __DIR__ . '/../../templates/dashboard/dispatch.php';
+        require_once __DIR__ . '/../../../templates/dashboard/dispatch.php';
     }
 
     private function handleDispatchPost(): void {
@@ -219,7 +219,7 @@ class StockController
         $userRole = $_SESSION['user_role'] ?? 'preparator';
         $currentPage = 'alerts';
 
-        require_once __DIR__ . '/../../templates/dashboard/alerts.php';
+        require_once __DIR__ . '/../../../templates/dashboard/alerts.php';
     }
 
     public function markAsExpired(): void {
@@ -270,6 +270,6 @@ class StockController
         $userRole = $_SESSION['user_role'] ?? 'preparer';
         $currentPage = 'alerts';
 
-        require_once __DIR__ . '/../../templates/dashboard/mark-expired.php';
+        require_once __DIR__ . '/../../../templates/dashboard/mark-expired.php';
     }
 }

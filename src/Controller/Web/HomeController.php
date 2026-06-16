@@ -1,6 +1,6 @@
 <?php
 
-namespace PharmaFEFOV2\Controller;
+namespace Controller\Web;
 
 class HomeController
 {
@@ -8,6 +8,6 @@ class HomeController
 
 
         // Show the landing page
-        require_once __DIR__ . '/../../templates/home/index.php';
+        require_once __DIR__ . '/../../../templates/home/index.php';
     }
 }

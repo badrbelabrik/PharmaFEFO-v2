@@ -6,12 +6,12 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/../config/autoloader.php';
 
-use PharmaFEFOV2\Controller\AuthController;
-use PharmaFEFOV2\Controller\DashboardController;
-use PharmaFEFOV2\Controller\HomeController;
-use PharmaFEFOV2\Controller\StockController;
-use PharmaFEFOV2\Controller\AdminController;
-use PharmaFEFOV2\Controller\ReportController;
+use Controller\Web\AdminController;
+use Controller\Web\AuthController;
+use Controller\Web\DashboardController;
+use Controller\Web\HomeController;
+use Controller\Web\ReportController;
+use Controller\Web\StockController;
 use PharmaFEFOV2\Middleware\AuthMiddleware;
 use PharmaFEFOV2\Middleware\RoleMiddleware;
 

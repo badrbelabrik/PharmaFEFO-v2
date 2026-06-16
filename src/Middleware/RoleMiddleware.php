@@ -34,7 +34,7 @@ class RoleMiddleware
     public static function requireRole($requiredRoles): void
     {
         if (!self::hasRole($requiredRoles)) {
-            header('Location: index.php?route=dashboard');
+            header('Location: index.php?route=403.php');
             exit();
         }
     }
