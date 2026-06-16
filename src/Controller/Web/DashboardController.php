@@ -1,45 +1,110 @@
 <?php
 
-namespace Controller\Web;
+declare(strict_types=1);
+
+namespace PharmaFEFOV2\Controller;
+
 
 use PharmaFEFOV2\Repository\ProductRepository;
 use PharmaFEFOV2\Repository\StockBatchRepository;
-use PharmaFEFOV2\Service\StockBatchService;
 
-class DashboardController
+class StockController
 {
-    private StockBatchRepository $stockBatchRepo;
     private ProductRepository $productRepo;
+    private StockBatchRepository $stockBatchRepo;
 
     public function __construct() {
-        $this->stockBatchRepo = new StockBatchRepository();
         $this->productRepo = new ProductRepository();
+        $this->stockBatchRepo = new StockBatchRepository();
     }
 
-    public function index(): void {
-        $currentFilter = $_GET['filter'] ?? 'all';
+    /**
+     * Show receive form (HTML only)
+     */
+    public function receive(): void
+    {
+        $products = $this->productRepo->findAll();
+        $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
+        $userRole = $_SESSION['user_role'] ?? 'preparer';
+        $currentPage = 'receive';
 
-        $allBatches = $this->stockBatchRepo->findAllWithCriticality();
+        require_once __DIR__ . '/../../../templates/dashboard/receive.php';
+    }
 
-        $stats = StockBatchService::getBatchStatistics($allBatches);
+    /**
+     * Show dispatch form (HTML only)
+     */
+    public function dispatch(): void
+    {
+        $products = $this->productRepo->findAll();
+        $selectedProductId = (int)($_GET['product_id'] ?? 0);
+        $selectedBatch = null;
+        $daysLeft = null;
 
-        $displayBatches = match($currentFilter) {
-            'critical' => $stats['critical'],
-            'warning' => $stats['warning'],
-            'healthy' => $stats['healthy'],
-            default => $allBatches
-        };
+        if ($selectedProductId > 0) {
+            $selectedBatch = $this->stockBatchRepo->findEarliestExpiringBatch($selectedProductId);
+            if ($selectedBatch) {
+                $daysLeft = $selectedBatch->getDaysUntilExpiration();
+            }
+        }
 
-        $totalProducts = count($this->productRepo->findAll());
+        $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
+        $userRole = $_SESSION['user_role'] ?? 'preparer';
+        $currentPage = 'dispatch';
 
-        $totalStockValue = StockBatchService::getTotalValueForBatches($allBatches);
+        require_once __DIR__ . '/../../../templates/dashboard/dispatch.php';
+    }
 
-        $currentUser = ($_SESSION['user_firstname'] ?? '') . ' ' . ($_SESSION['user_lastname'] ?? '');
-        $userRole = $_SESSION['user_role'] ?? 'preparator';
+    /**
+     * Show alerts page (HTML only)
+     */
+    public function alerts(): void
+    {
+        $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
+        $userRole = $_SESSION['user_role'] ?? 'pharmacist';
+        $currentPage = 'alerts';
 
-        $unreadNotifications = $this->stockBatchRepo->getUnreadNotifications();
-        $unreadNotificationsCount = count($unreadNotifications);
+        require_once __DIR__ . '/../../../templates/dashboard/alerts.php';
+    }
 
-        require_once __DIR__ . '/../../../templates/dashboard/dashboard.php';
+    /**
+     * Show mark expired confirmation page (HTML only)
+     */
+    public function markAsExpired(): void
+    {
+        $batchId = (int)($_GET['id'] ?? 0);
+        $batch = $this->stockBatchRepo->findById($batchId);
+
+        if (!$batch) {
+            $_SESSION['error'] = "Batch not found.";
+            header('Location: index.php?route=stock-alerts');
+            exit();
+        }
+
+        $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
+        $userRole = $_SESSION['user_role'] ?? 'pharmacist';
+        $currentPage = 'alerts';
+
+        require_once __DIR__ . '/../../../templates/dashboard/mark-expired.php';
+    }
+
+    /**
+     * Show supplier return page (HTML only)
+     */
+    public function returnToSupplier(): void
+    {
+        $eligibleBatches = $this->stockBatchRepo->getReturnEligibleBatches();
+        $selectedBatchId = (int)($_GET['batch_id'] ?? 0);
+        $selectedBatch = null;
+
+        if ($selectedBatchId > 0) {
+            $selectedBatch = $this->stockBatchRepo->findById($selectedBatchId);
+        }
+
+        $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
+        $userRole = $_SESSION['user_role'] ?? 'pharmacist';
+        $currentPage = 'returns';
+
+        require_once __DIR__ . '/../../../templates/dashboard/return.php';
     }
 }
