@@ -21,10 +21,6 @@ class ApiStockController
         $this->productRepo = new ProductRepository();
     }
 
-    /**
-     * POST /api/v1/stock/receive
-     * US 1.1: Receive new batch asynchronously
-     */
     public function receive(): void
     {
         header('Content-Type: application/json');
@@ -36,7 +32,6 @@ class ApiStockController
             return;
         }
 
-        // Check role (Preparer only)
         if ($_SESSION['user_role'] !== 'preparer') {
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => 'Access denied. Preparer role required.']);
@@ -67,7 +62,6 @@ class ApiStockController
             return;
         }
 
-        // Validate expiration date
         try {
             $expirationDate = new DateTime($input['expiration_date']);
             $today = new DateTime();
@@ -126,10 +120,6 @@ class ApiStockController
         }
     }
 
-    /**
-     * POST /api/v1/stock/dispense
-     * US 3.1: Dispense medication asynchronously (FEFO)
-     */
     public function dispense(): void
     {
         header('Content-Type: application/json');
@@ -211,10 +201,6 @@ class ApiStockController
         }
     }
 
-    /**
-     * POST /api/v1/stock/expired
-     * US 4.1: Mark batch as expired
-     */
     public function markExpired(): void
     {
         header('Content-Type: application/json');
@@ -252,7 +238,6 @@ class ApiStockController
         $success = $this->stockBatchRepo->markAsExpired($batch);
 
         if ($success) {
-            // Create notification
             $this->stockBatchRepo->createNotification(
                 $batch->getId(),
                 "Batch {$batch->getLotNumber()} for {$batch->getProduct()->getName()} has been marked as expired and destroyed."
@@ -269,10 +254,6 @@ class ApiStockController
         }
     }
 
-    /**
-     * POST /api/v1/stock/return
-     * Supplier return request
-     */
     public function returnBatch(): void
     {
         header('Content-Type: application/json');
@@ -284,7 +265,6 @@ class ApiStockController
             return;
         }
 
-        // Check role (Pharmacist+)
         if (!in_array($_SESSION['user_role'], ['pharmacist', 'admin'])) {
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => 'Access denied. Pharmacist role required.']);

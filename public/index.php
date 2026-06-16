@@ -8,9 +8,9 @@ require_once __DIR__ . '/../config/autoloader.php';
 
 use Controller\Api\ApiDashboardController;
 use Controller\Api\ApiStockController;
+use Controller\Web\DashboardController;
 use Controller\Web\AdminController;
 use Controller\Web\AuthController;
-use Controller\Web\DashboardController;
 use Controller\Web\HomeController;
 use Controller\Web\ReportController;
 use Controller\Web\StockController;

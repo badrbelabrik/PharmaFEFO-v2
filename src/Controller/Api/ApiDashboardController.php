@@ -1,10 +1,5 @@
 <?php
-
-declare(strict_types=1);
-
 namespace PharmaFEFO\Controller\Api;
-
-
 
 use PharmaFEFOV2\Repository\ProductRepository;
 use PharmaFEFOV2\Repository\StockBatchRepository;
@@ -19,10 +14,6 @@ class ApiDashboardController
         $this->productRepo = new ProductRepository();
     }
 
-    /**
-     * GET /api/v1/batches?criteria=critical|warning|healthy|all
-     * US 2.1: Get filtered batches as JSON
-     */
     public function getBatches(): void
     {
         header('Content-Type: application/json');
@@ -54,7 +45,6 @@ class ApiDashboardController
             return $batch->jsonSerialize();
         }, $batches);
 
-        // US 2.2: Get expiring next month count
         $expiringNextMonth = $this->stockBatchRepo->getExpiringNextMonth();
 
         echo json_encode([
@@ -69,10 +59,6 @@ class ApiDashboardController
         ]);
     }
 
-    /**
-     * GET /api/v1/dashboard/stats
-     * US 2.2: Get dashboard statistics
-     */
     public function getStats(): void
     {
         header('Content-Type: application/json');
