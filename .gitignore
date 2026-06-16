@@ -5,3 +5,9 @@
 .idea/
 .vscode/
 seed.php
+test.php
+vendor/
+logs/
+
+.DS_Store
+*.log

@@ -1,9 +1,9 @@
 <?php
 
-namespace PharmaFEFOV2\Controller;
+namespace Controller\Web;
 
-use PharmaFEFOV2\Repository\StockBatchRepository;
 use PharmaFEFOV2\Repository\ProductRepository;
+use PharmaFEFOV2\Repository\StockBatchRepository;
 use PharmaFEFOV2\Service\StockBatchService;
 
 class DashboardController
@@ -40,6 +40,6 @@ class DashboardController
         $unreadNotifications = $this->stockBatchRepo->getUnreadNotifications();
         $unreadNotificationsCount = count($unreadNotifications);
 
-        require_once __DIR__ . '/../../templates/dashboard/dashboard.php';
+        require_once __DIR__ . '/../../../templates/dashboard/dashboard.php';
     }
 }

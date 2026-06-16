@@ -1,6 +1,6 @@
 <?php
 
-namespace PharmaFEFOV2\Controller;
+namespace Controller\Web;
 
 use PharmaFEFOV2\Repository\UserRepository;
 
@@ -35,7 +35,7 @@ class AuthController
 
         if (empty($email) || empty($password)) {
             $error = "Please fill in all fields.";
-            require_once __DIR__ . '/../../templates/auth/login.php';
+            require_once __DIR__ . '/../../../templates/auth/login.php';
             return;
         }
 
@@ -56,7 +56,7 @@ class AuthController
             exit();
         } else {
             $error = "Invalid credentials. Please try again.";
-            require_once __DIR__ . '/../../templates/auth/login.php';
+            require_once __DIR__ . '/../../../templates/auth/login.php';
         }
     }
 
