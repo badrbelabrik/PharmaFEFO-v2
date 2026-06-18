@@ -21,12 +21,6 @@ class StockController
 
     public function receive(): void
     {
-        if ($_SESSION['user_role'] !== 'preparer') {
-            $_SESSION['error'] = "Access denied. Preparer role required.";
-            header('Location: index.php?route=dashboard');
-            exit();
-        }
-
         $products = $this->productRepo->findAll();
         $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
         $userRole = $_SESSION['user_role'] ?? 'preparer';
