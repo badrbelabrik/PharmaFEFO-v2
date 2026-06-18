@@ -185,4 +185,5 @@ use PharmaFEFOV2\Service\StockBatchService;
 </div>
 
 </body>
+<script src=""></script>
 </html>

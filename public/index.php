@@ -30,29 +30,40 @@ $stockContr = new StockController();
 $reportContr = new ReportController();
 $adminContr = new AdminController();
 
+$apiStock = new ApiStockController();
+$apiDashboard = new ApiDashboardController();
 // ============================================
 // API ROUTES (Return JSON only)
 // ============================================
 if ($route === 'api') {
-    $apiStock = new ApiStockController();
-    $apiDashboard = new ApiDashboardController();
 
     switch ($apiAction) {
+        // US 1.1: Async stock reception
         case 'receive':
             $apiStock->receive();
             break;
+
+        // US 3.1: Async dispense (EPIC 3)
         case 'dispense':
             $apiStock->dispense();
             break;
+
+        // US 4.1: Async mark expired (EPIC 4)
         case 'expired':
             $apiStock->markExpired();
             break;
+
+        // Bonus: Supplier return
         case 'return':
             $apiStock->returnBatch();
             break;
+
+        // US 2.1: Get filtered batches
         case 'batches':
             $apiDashboard->getBatches();
             break;
+
+        // US 2.2: Get dashboard stats
         case 'stats':
             $apiDashboard->getStats();
             break;
@@ -65,6 +76,15 @@ if ($route === 'api') {
     }
     exit;
 }
+
+// ============================================
+// WEB ROUTES (Return HTML)
+// ============================================
+
+$authContr = new AuthController();
+$homeContr = new HomeController();
+$dashboardContr = new DashboardController();
+$stockContr = new StockController();
 
 switch ($route) {
     case 'home':
@@ -85,73 +105,12 @@ switch ($route) {
         $dashboardContr->index();
         break;
 
+    // US 1.1: Receive form (HTML)
     case 'stock-receive':
         AuthMiddleware::requireAuth();
         RoleMiddleware::requireRoleHierarchy('preparer');
         $stockContr->receive();
         break;
-
-    case 'stock-dispatch':
-        AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRoleHierarchy('preparer');
-        $stockContr->dispatch();
-        break;
-
-    case 'stock-alerts':
-        AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRole(['pharmacist', 'admin']);
-        $stockContr->alerts();
-        break;
-
-    case 'stock-expired':
-        AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRole(['pharmacist', 'admin']);
-        $stockContr->markAsExpired();
-        break;
-
-    case 'stock-return':
-        AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRole(['pharmacist', 'admin']);
-        $stockContr->returnToSupplier();
-        break;
-
-    case 'reports':
-        AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRole(['pharmacist', 'admin']);
-        $reportContr->index();
-        break;
-
-    case 'report-financial':
-        AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRole('admin');
-        $reportContr->financial();
-        break;
-
-
-    case 'admin-users':
-        AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRole('admin');
-        $adminContr->users();
-        break;
-
-    case 'admin-user-create':
-        AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRole('admin');
-        $adminContr->createUser();
-        break;
-
-    case 'admin-user-edit':
-        AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRole('admin');
-        $adminContr->editUser();
-        break;
-
-    case 'admin-user-delete':
-        AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRole('admin');
-        $adminContr->deleteUser();
-        break;
-
 
     default:
         http_response_code(404);

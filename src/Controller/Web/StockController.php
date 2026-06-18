@@ -19,13 +19,22 @@ class StockController
         $this->productRepo = new ProductRepository();
     }
 
-    public function receive(): void {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $this->handleReceivePost();
-        } else {
-            $this->showReceiveForm();
+    public function receive(): void
+    {
+        if ($_SESSION['user_role'] !== 'preparer') {
+            $_SESSION['error'] = "Access denied. Preparer role required.";
+            header('Location: index.php?route=dashboard');
+            exit();
         }
+
+        $products = $this->productRepo->findAll();
+        $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
+        $userRole = $_SESSION['user_role'] ?? 'preparer';
+        $currentPage = 'receive';
+
+        require_once __DIR__ . '/../../../templates/dashboard/receive.php';
     }
+
 
     private function showReceiveForm(): void {
         $products = $this->productRepo->findAll();
