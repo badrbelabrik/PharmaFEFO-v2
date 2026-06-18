@@ -6,14 +6,16 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/../config/autoloader.php';
 
-use Controller\Api\ApiDashboardController;
-use Controller\Api\ApiStockController;
+
+
 use Controller\Web\DashboardController;
 use Controller\Web\AdminController;
 use Controller\Web\AuthController;
 use Controller\Web\HomeController;
 use Controller\Web\ReportController;
 use Controller\Web\StockController;
+use PharmaFEFOV2\Controller\Api\ApiDashboardController;
+use PharmaFEFOV2\Controller\Api\ApiStockController;
 use PharmaFEFOV2\Middleware\AuthMiddleware;
 use PharmaFEFOV2\Middleware\RoleMiddleware;
 
@@ -48,8 +50,6 @@ if ($route === 'api') {
         case 'return':
             $apiStock->returnBatch();
             break;
-
-        // Dashboard API endpoints
         case 'batches':
             $apiDashboard->getBatches();
             break;

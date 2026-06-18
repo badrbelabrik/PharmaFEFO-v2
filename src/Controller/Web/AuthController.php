@@ -26,7 +26,7 @@ class AuthController
     }
 
     private function showLoginForm(): void {
-        require_once __DIR__ . '/../../templates/auth/login.php';
+        require_once __DIR__ . '/../../../templates/auth/login.php';
     }
 
     private function processLogin(): void {
