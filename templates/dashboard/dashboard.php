@@ -1,188 +1,110 @@
 <?php
-use PharmaFEFOV2\Service\StockBatchService;
+$currentPage = 'dashboard';
+$userRole = $_SESSION['user_role'] ?? 'preparer';
+$currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? 'User');
+require_once __DIR__ . '/../layout/sidebar.php';
 ?>
+<main class="flex-grow p-8 overflow-y-auto">
+    <header class="flex justify-between items-center pb-6 border-b border-slate-200 mb-8">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900">Dispensary Overview</h1>
+            <p class="text-sm text-slate-500">Monitor batch queues and anticipate upcoming losses.</p>
+        </div>
+        <div class="relative p-2 bg-white rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
+            <span class="text-xl">🔔</span>
+            <span id="notification-badge" class="absolute top-1 right-1 hidden w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+        </div>
+    </header>
 
-<!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-100">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - PharmaFEFO</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-</head>
-<body class="h-full font-sans antialiased text-slate-900">
+    <!-- US 2.2: Expiring Next Month Banner -->
+    <div id="expiring-banner" class="hidden mb-6 p-4 bg-amber-50 border-l-4 border-amber-500 text-amber-700 rounded-r-lg">
+        <div class="flex items-center">
+            <span class="text-xl mr-3">⚠️</span>
+            <span id="expiring-message"></span>
+        </div>
+    </div>
 
-<div class="flex min-h-screen">
-    <?php require_once __DIR__ . '/../layout/sidebar.php'; ?>
-    <main class="flex-grow p-8 overflow-y-auto">
-        <header class="flex justify-between items-center pb-6 border-b border-slate-200 mb-8">
-            <div>
-                <h1 class="text-2xl font-bold text-slate-900">Dispensary Overview</h1>
-                <p class="text-sm text-slate-500">Monitor batch queues and anticipate upcoming losses.</p>
-            </div>
-            <div class="relative p-2 bg-white rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
-                <span class="text-xl">🔔</span>
-                <?php $unreadCount = $unreadNotificationsCount ?? 0; ?>
-                <?php if ($unreadCount > 0): ?>
-                    <span class="absolute top-1 right-1 flex h-3 w-3">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                    </span>
-                <?php endif; ?>
-            </div>
-        </header>
+    <!-- Stats Cards - Populated by JavaScript -->
+    <section class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
+            <p class="text-sm font-medium text-slate-500">Total Tracked Batches</p>
+            <p id="total-batches" class="text-3xl font-bold text-slate-900 mt-2">-</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl border border-slate-200 border-l-4 border-emerald-500 shadow-xs">
+            <p class="text-sm font-medium text-slate-500">Healthy (> 90 days)</p>
+            <p id="healthy-count" class="text-3xl font-bold text-emerald-600 mt-2">-</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl border border-slate-200 border-l-4 border-amber-500 shadow-xs">
+            <p class="text-sm font-medium text-slate-500">Warning (< 90 days)</p>
+            <p id="warning-count" class="text-3xl font-bold text-amber-600 mt-2">-</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl border border-slate-200 border-l-4 border-red-500 shadow-xs">
+            <p class="text-sm font-medium text-slate-500">Critical (< 30 days)</p>
+            <p id="critical-count" class="text-3xl font-bold text-red-600 mt-2">-</p>
+        </div>
+    </section>
 
-        <!-- Stats Cards -->
-        <section class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-                <p class="text-sm font-medium text-slate-500">Total Tracked Batches</p>
-                <p class="text-3xl font-bold text-slate-900 mt-2"><?= $stats['totalBatches'] ?? 0 ?></p>
-            </div>
-            <div class="bg-white p-5 rounded-xl border border-slate-200 border-l-4 border-emerald-500 shadow-xs">
-                <p class="text-sm font-medium text-slate-500">Conforming (> 6 months)</p>
-                <p class="text-3xl font-bold text-emerald-600 mt-2"><?= $stats['healthyCount'] ?? 0 ?></p>
-            </div>
-            <div class="bg-white p-5 rounded-xl border border-slate-200 border-l-4 border-amber-500 shadow-xs">
-                <p class="text-sm font-medium text-slate-500">Warning (< 90 days)</p>
-                <p class="text-3xl font-bold text-amber-600 mt-2"><?= $stats['warningCount'] ?? 0 ?></p>
-            </div>
-            <div class="bg-white p-5 rounded-xl border border-slate-200 border-l-4 border-red-500 shadow-xs">
-                <p class="text-sm font-medium text-slate-500">Critical (< 30 days)</p>
-                <p class="text-3xl font-bold text-red-600 mt-2"><?= $stats['criticalCount'] ?? 0 ?></p>
-            </div>
-        </section>
+    <!-- Filter Section - US 2.1 -->
+    <section class="bg-white p-4 rounded-xl border border-slate-200 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div class="flex flex-wrap gap-2">
+            <button data-filter="all" class="filter-btn px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg transition-colors">
+                📊 All Batches
+            </button>
+            <button data-filter="critical" class="filter-btn px-4 py-2 text-sm font-medium bg-white text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
+                🔴 Critical (< 30 days)
+            </button>
+            <button data-filter="warning" class="filter-btn px-4 py-2 text-sm font-medium bg-white text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
+                🟠 Warning (< 90 days)
+            </button>
+            <button data-filter="healthy" class="filter-btn px-4 py-2 text-sm font-medium bg-white text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
+                🟢 Healthy (> 90 days)
+            </button>
+        </div>
+        <a href="index.php?route=stock-receive" class="inline-flex justify-center items-center px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition-colors">
+            + Ingest New Batch
+        </a>
+    </section>
 
-        <!-- Filter Section -->
-        <section class="bg-white p-4 rounded-xl border border-slate-200 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <form action="index.php" method="GET" class="flex items-center space-x-3 w-full sm:w-auto">
-                <input type="hidden" name="route" value="dashboard">
-                <label for="status-filter" class="text-sm font-medium text-slate-700 whitespace-nowrap">Filter Grid:</label>
-                <select id="status-filter" name="filter" onchange="this.form.submit()"
-                        class="block w-full sm:w-48 px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                    <option value="all" <?= ($currentFilter ?? 'all') === 'all' ? 'selected' : '' ?>>All Batches</option>
-                    <option value="critical" <?= ($currentFilter ?? '') === 'critical' ? 'selected' : '' ?>>🔴 Critical Alert (&lt; 30 days)</option>
-                    <option value="warning" <?= ($currentFilter ?? '') === 'warning' ? 'selected' : '' ?>>🟠 Warning Alert (&lt; 90 days)</option>
-                    <option value="healthy" <?= ($currentFilter ?? '') === 'healthy' ? 'selected' : '' ?>>🟢 Conforming (&gt; 6 months)</option>
-                </select>
-            </form>
-            <div class="flex gap-2 w-full sm:w-auto">
-                <a href="index.php?route=stock-receive" class="w-full sm:w-auto inline-flex justify-center items-center px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition-colors cursor-pointer">
-                    + Ingest New Batch
-                </a>
-            </div>
-        </section>
+    <!-- Batches Table - Populated by JavaScript -->
+    <section class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
+                <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <tr>
+                    <th class="px-6 py-4">Medication Name</th>
+                    <th class="px-6 py-4">Lot Number</th>
+                    <th class="px-6 py-4">Available Qty</th>
+                    <th class="px-6 py-4">Expiration Date (DLU)</th>
+                    <th class="px-6 py-4">Risk Evaluation</th>
+                    <th class="px-6 py-4 text-right">Actions</th>
+                </tr>
+                </thead>
+                <tbody id="batch-table-body" class="divide-y divide-slate-200 bg-white">
+                <tr>
+                    <td colspan="6" class="px-6 py-8 text-center text-slate-500">
+                        <div class="flex justify-center items-center space-x-3">
+                            <div class="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                            <span>Loading batches...</span>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
 
-        <!-- Batches Table -->
-        <section class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
-                    <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    <tr>
-                        <th class="px-6 py-4">Medication Name</th>
-                        <th class="px-6 py-4">Lot Number</th>
-                        <th class="px-6 py-4">Available Qty</th>
-                        <th class="px-6 py-4">Expiration Date (DLU)</th>
-                        <th class="px-6 py-4">Risk Evaluation</th>
-                        <th class="px-6 py-4 text-right">Actions</th>
-                    </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-200 bg-white">
-                    <?php if (empty($displayBatches)): ?>
-                        <tr>
-                            <td colspan="6" class="px-6 py-8 text-center text-slate-500">
-                                No batches found matching the selected filter.
-                            </td>
-                        </tr>
-                    <?php else: ?>
-                        <?php foreach ($displayBatches as $batch): ?>
-                            <?php
-                            // Use StockBatchService for all calculations
-                            $daysLeft = StockBatchService::getDaysUntilExpiration($batch);
-                            $badgeClass = StockBatchService::getBadgeClass($batch);
-                            $statusLabel = StockBatchService::getStatusLabel($batch);
-                            $isExpired = StockBatchService::isExpired($batch);
-
-                            // Determine row class based on days left
-                            if ($isExpired || $daysLeft < 0) {
-                                $rowClass = 'bg-gray-50/50 hover:bg-gray-50';
-                                $dateClass = 'text-gray-500 line-through';
-                            } elseif ($daysLeft <= 30) {
-                                $rowClass = 'bg-red-50/50 hover:bg-red-50';
-                                $dateClass = 'text-red-700 font-medium';
-                            } elseif ($daysLeft <= 90) {
-                                $rowClass = 'bg-amber-50/30 hover:bg-amber-50';
-                                $dateClass = 'text-amber-700 font-medium';
-                            } else {
-                                $rowClass = 'hover:bg-slate-50';
-                                $dateClass = 'text-slate-600';
-                            }
-                            ?>
-                            <tr class="<?= $rowClass ?> transition-colors">
-                                <td class="px-6 py-4 font-semibold text-slate-900">
-                                    <?= htmlspecialchars($batch->getProduct()->getName()) ?>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <span class="font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 text-xs">
-                                        <?= htmlspecialchars($batch->getLotNumber()) ?>
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 font-medium text-slate-900">
-                                    <?= $batch->getQuantity() ?> units
-                                </td>
-                                <td class="px-6 py-4 <?= $dateClass ?>">
-                                    <?= StockBatchService::formatExpirationDate($batch, 'F j, Y') ?>
-                                    <?php if ($isExpired || $daysLeft < 0): ?>
-                                        <span class="ml-2 text-xs text-red-600">(Expired)</span>
-                                    <?php elseif ($daysLeft <= 30): ?>
-                                        <span class="ml-2 text-xs text-red-600">(<?= $daysLeft ?> days left)</span>
-                                    <?php elseif ($daysLeft <= 90): ?>
-                                        <span class="ml-2 text-xs text-amber-600">(<?= $daysLeft ?> days left)</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold <?= $badgeClass ?> border">
-                                        <?= $statusLabel ?>
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 text-right whitespace-nowrap">
-                                    <?php if ($isExpired || $daysLeft < 0): ?>
-                                        <form action="index.php?route=stock-expired" method="POST" class="inline">
-                                            <input type="hidden" name="batch_id" value="<?= $batch->getId() ?>">
-                                            <button type="submit" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-gray-600 hover:bg-gray-700 rounded-lg transition-colors cursor-pointer">
-                                                Remove from Stock
-                                            </button>
-                                        </form>
-                                    <?php elseif ($daysLeft <= 30): ?>
-                                        <form action="index.php?route=stock-expired" method="POST" class="inline">
-                                            <input type="hidden" name="batch_id" value="<?= $batch->getId() ?>">
-                                            <button type="submit" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors cursor-pointer">
-                                                Flag: Expired / Destroy
-                                            </button>
-                                        </form>
-                                    <?php elseif ($daysLeft <= 90): ?>
-                                        <button class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors cursor-pointer mr-2">
-                                            Supplier Return
-                                        </button>
-                                        <a href="index.php?route=stock-dispatch&product_id=<?= $batch->getProduct()->getId() ?>"
-                                           class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors cursor-pointer">
-                                            Dispense
-                                        </a>
-                                    <?php else: ?>
-                                        <a href="index.php?route=stock-dispatch&product_id=<?= $batch->getProduct()->getId() ?>"
-                                           class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors cursor-pointer">
-                                            Dispense
-                                        </a>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-    </main>
+<!-- Loading Overlay -->
+<div id="loading-overlay" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 flex items-center space-x-4 shadow-xl">
+        <div class="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+        <span class="text-slate-700 font-medium">Loading...</span>
+    </div>
 </div>
 
+<!-- Toast Container -->
+<div id="toast-container" class="fixed bottom-4 right-4 space-y-2 z-50"></div>
+
+<script src="../../PharmaFEFO-v2/public/js/dashboard.js"></script>
 </body>
 </html>

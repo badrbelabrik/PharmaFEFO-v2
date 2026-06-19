@@ -1,92 +1,110 @@
 <?php
 
-namespace PharmaFEFOV2\Controller\Web;
+namespace PharmaFEFOV2\Controller\Api;
 
+use DateTime;
+use PharmaFEFOV2\Entity\StockBatch;
+use PharmaFEFOV2\Enum\BatchStatus;
 use PharmaFEFOV2\Repository\ProductRepository;
 use PharmaFEFOV2\Repository\StockBatchRepository;
 
-class StockController
+class ApiStockController
 {
-    private ProductRepository $productRepo;
     private StockBatchRepository $stockBatchRepo;
+    private ProductRepository $productRepo;
 
     public function __construct() {
-        $this->productRepo = new ProductRepository();
         $this->stockBatchRepo = new StockBatchRepository();
+        $this->productRepo = new ProductRepository();
     }
 
     public function receive(): void
     {
-        $products = $this->productRepo->findAll();
-        $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
-        $userRole = $_SESSION['user_role'] ?? 'preparer';
-        $currentPage = 'receive';
+        header('Content-Type: application/json');
 
-        require_once __DIR__ . '/../../../templates/dashboard/receive.php';
-    }
+        if (!isset($_SESSION['user_id'])) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'error' => 'Unauthorized. Please login.']);
+            return;
+        }
 
-    public function dispatch(): void
-    {
-        $products = $this->productRepo->findAll();
-        $selectedProductId = (int)($_GET['product_id'] ?? 0);
-        $selectedBatch = null;
-        $daysLeft = null;
+        $input = json_decode(file_get_contents('php://input'), true);
 
-        if ($selectedProductId > 0) {
-            $selectedBatch = $this->stockBatchRepo->findEarliestExpiringBatch($selectedProductId);
-            if ($selectedBatch) {
-                $daysLeft = $selectedBatch->getDaysUntilExpiration();
+        if (!$input) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Invalid JSON data']);
+            return;
+        }
+
+        $required = ['product_id', 'lot_number', 'expiration_date', 'quantity', 'purchase_price'];
+        $errors = [];
+
+        foreach ($required as $field) {
+            if (empty($input[$field])) {
+                $errors[] = "Missing field: {$field}";
             }
         }
 
-        $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
-        $userRole = $_SESSION['user_role'] ?? 'preparer';
-        $currentPage = 'dispatch';
-
-        require_once __DIR__ . '/../../../templates/dashboard/dispatch.php';
-    }
-
-    public function alerts(): void
-    {
-        $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
-        $userRole = $_SESSION['user_role'] ?? 'pharmacist';
-        $currentPage = 'alerts';
-
-        require_once __DIR__ . '/../../../templates/dashboard/alerts.php';
-    }
-
-    public function markAsExpired(): void
-    {
-        $batchId = (int)($_GET['id'] ?? 0);
-        $batch = $this->stockBatchRepo->findById($batchId);
-
-        if (!$batch) {
-            $_SESSION['error'] = "Batch not found.";
-            header('Location: index.php?route=stock-alerts');
-            exit();
+        if (!empty($errors)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'errors' => $errors]);
+            return;
         }
 
-        $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
-        $userRole = $_SESSION['user_role'] ?? 'pharmacist';
-        $currentPage = 'alerts';
+        try {
+            $expirationDate = new DateTime($input['expiration_date']);
+            $today = new DateTime();
+            $today->setTime(0, 0, 0);
 
-        require_once __DIR__ . '/../../../templates/dashboard/mark-expired.php';
-    }
-
-    public function returnToSupplier(): void
-    {
-        $eligibleBatches = $this->stockBatchRepo->getReturnEligibleBatches();
-        $selectedBatchId = (int)($_GET['batch_id'] ?? 0);
-        $selectedBatch = null;
-
-        if ($selectedBatchId > 0) {
-            $selectedBatch = $this->stockBatchRepo->findById($selectedBatchId);
+            if ($expirationDate <= $today) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Expiration date must be in the future']);
+                return;
+            }
+        } catch (\Exception $e) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Invalid expiration date format']);
+            return;
         }
 
-        $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? '');
-        $userRole = $_SESSION['user_role'] ?? 'pharmacist';
-        $currentPage = 'returns';
+        $product = $this->productRepo->findById((int)$input['product_id']);
+        if (!$product) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Product not found']);
+            return;
+        }
 
-        require_once __DIR__ . '/../../../templates/dashboard/return.php';
+        $batch = new StockBatch(
+            $input['lot_number'],
+            (int)$input['quantity'],
+            (float)$input['purchase_price'],
+            BatchStatus::OK,
+            $expirationDate,
+            (new DateTime())->format('Y-m-d H:i:s'),
+            $product
+        );
+
+        $savedBatch = $this->stockBatchRepo->save($batch);
+
+        if ($savedBatch) {
+            // 8. Create notification if expiring soon
+            $daysUntilExpiry = $batch->getDaysUntilExpiration();
+            if ($daysUntilExpiry <= 90) {
+                $this->stockBatchRepo->createNotification(
+                    $savedBatch->getId(),
+                    "Batch {$input['lot_number']} for {$product->getName()} expires in {$daysUntilExpiry} days."
+                );
+            }
+
+            // 9. Return success response
+            echo json_encode([
+                'success' => true,
+                'message' => "Batch {$input['lot_number']} received successfully!",
+                'batch' => $savedBatch->jsonSerialize()
+            ]);
+        } else {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Failed to save batch. Please try again.']);
+        }
     }
 }
