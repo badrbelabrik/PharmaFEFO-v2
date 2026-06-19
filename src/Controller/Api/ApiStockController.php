@@ -7,6 +7,7 @@ use PharmaFEFOV2\Entity\StockBatch;
 use PharmaFEFOV2\Enum\BatchStatus;
 use PharmaFEFOV2\Repository\ProductRepository;
 use PharmaFEFOV2\Repository\StockBatchRepository;
+use PharmaFEFOV2\Service\StockBatchService;
 
 class ApiStockController
 {
@@ -107,7 +108,7 @@ class ApiStockController
             echo json_encode(['success' => false, 'error' => 'Failed to save batch. Please try again.']);
         }
     }
-    
+
     public function dispense(): void
     {
         header('Content-Type: application/json');
