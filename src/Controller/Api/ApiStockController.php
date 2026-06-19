@@ -18,29 +18,16 @@ class ApiStockController
         $this->productRepo = new ProductRepository();
     }
 
-    /**
-     * US 1.1: POST /api?action=receive
-     * Receive new batch asynchronously (JSON response)
-     */
     public function receive(): void
     {
         header('Content-Type: application/json');
 
-        // 1. Check authentication
         if (!isset($_SESSION['user_id'])) {
             http_response_code(401);
             echo json_encode(['success' => false, 'error' => 'Unauthorized. Please login.']);
             return;
         }
 
-        // 2. Check role (Preparer only)
-        if ($_SESSION['user_role'] !== 'preparer') {
-            http_response_code(403);
-            echo json_encode(['success' => false, 'error' => 'Access denied. Preparer role required.']);
-            return;
-        }
-
-        // 3. Get JSON input
         $input = json_decode(file_get_contents('php://input'), true);
 
         if (!$input) {
@@ -49,7 +36,6 @@ class ApiStockController
             return;
         }
 
-        // 4. Validate required fields
         $required = ['product_id', 'lot_number', 'expiration_date', 'quantity', 'purchase_price'];
         $errors = [];
 
@@ -65,7 +51,6 @@ class ApiStockController
             return;
         }
 
-        // 5. Validate expiration date
         try {
             $expirationDate = new DateTime($input['expiration_date']);
             $today = new DateTime();
@@ -82,7 +67,6 @@ class ApiStockController
             return;
         }
 
-        // 6. Get product
         $product = $this->productRepo->findById((int)$input['product_id']);
         if (!$product) {
             http_response_code(404);
@@ -90,7 +74,6 @@ class ApiStockController
             return;
         }
 
-        // 7. Create and save batch
         $batch = new StockBatch(
             $input['lot_number'],
             (int)$input['quantity'],
