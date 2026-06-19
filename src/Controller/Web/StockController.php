@@ -125,18 +125,8 @@ class StockController
         require_once __DIR__ . '/../../../templates/dashboard/receive.php';
     }
 
-    public function dispatch(): void {
-        // Handle POST request (actual dispensation)
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $this->handleDispatchPost();
-            return;
-        }
-
-        // Handle GET request (show form with selected product)
-        $this->showDispatchForm();
-    }
-
-    private function showDispatchForm(): void {
+    public function dispatch(): void
+    {
         $products = $this->productRepo->findAll();
         $selectedProductId = (int)($_GET['product_id'] ?? 0);
         $selectedBatch = null;

@@ -189,12 +189,12 @@ function getActionButtons(batch, userRole) {
             </button>
         `;
     } else {
+        // US 3.1: Redirect to dispatch page with product_id
         return `
-            <button onclick="dispenseMedicine(${batch.product.id})" 
-                    data-product-id="${batch.product.id}"
-                    class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors">
+            <a href="/index.php?route=stock-dispatch&product_id=${batch.product.id}" 
+               class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors">
                 💊 Dispense
-            </button>
+            </a>
         `;
     }
 }
@@ -244,161 +244,6 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchStats();
     }, 30000);
 });
-
-/**
- * US 3.1: Dispense medication asynchronously (FEFO)
- */
-window.dispenseMedicine = async function(productId) {
-    try {
-        // Ask for quantity
-        const quantity = prompt('Enter quantity to dispense:', '1');
-        if (!quantity || quantity <= 0) return;
-
-        // Validate input
-        const qty = parseInt(quantity);
-        if (isNaN(qty) || qty <= 0) {
-            showToast('error', 'Please enter a valid quantity.');
-            return;
-        }
-
-        // Show loading state
-        const buttons = document.querySelectorAll(`[data-product-id="${productId}"]`);
-        buttons.forEach(btn => {
-            btn.disabled = true;
-            btn.textContent = '⏳ Processing...';
-        });
-
-        // Send request to API
-        const response = await fetch(`${API_BASE}&action=dispense`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify({
-                product_id: productId,
-                quantity: qty
-            })
-        });
-
-        const result = await response.json();
-
-        // Handle response
-        if (response.status === 401) {
-            showToast('error', 'Session expired. Please login again.');
-            window.location.href = '/index.php?route=login';
-            return;
-        }
-
-        if (response.status === 403) {
-            showToast('error', 'Access denied. You need Preparer role to dispense.');
-            return;
-        }
-
-        if (!response.ok) {
-            throw new Error(result.error || `HTTP ${response.status}`);
-        }
-
-        if (result.success) {
-            // Show success message
-            showToast('success', result.message);
-
-            // US 3.1: Update UI without page reload
-            updateBatchQuantity(result);
-
-            // Refresh stats
-            await fetchStats();
-        } else {
-            showToast('error', result.error || 'Failed to dispense medication');
-        }
-    } catch (error) {
-        console.error('Dispense error:', error);
-        showToast('error', 'Network error. Please check your connection and try again.');
-    } finally {
-        // Restore buttons
-        const buttons = document.querySelectorAll(`[data-product-id="${productId}"]`);
-        buttons.forEach(btn => {
-            btn.disabled = false;
-            btn.textContent = '💊 Dispense';
-        });
-    }
-};
-
-/**
- * US 3.1: Update batch quantity in UI without page reload
- */
-function updateBatchQuantity(result) {
-    const batch = result.batch;
-
-    // Find the row containing this batch
-    const rows = document.querySelectorAll('#batch-table-body tr');
-
-    rows.forEach(row => {
-        // Find the lot number in this row
-        const lotElement = row.querySelector('.lot-number');
-        if (lotElement && lotElement.textContent === batch.lot_number) {
-            // Update quantity cell
-            const qtyCell = row.querySelector('.quantity-cell');
-            if (qtyCell) {
-                qtyCell.textContent = batch.quantity + ' units';
-            }
-
-            // If out of stock, gray out or remove the row
-            if (result.out_of_stock) {
-                // US 3.1: Row disappears or grays out
-                row.style.opacity = '0.5';
-                row.style.backgroundColor = '#f3f4f6';
-                row.classList.add('line-through');
-
-                // Add "Out of Stock" badge
-                const statusCell = row.querySelector('.status-cell');
-                if (statusCell) {
-                    statusCell.innerHTML = `
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200">
-                            Out of Stock
-                        </span>
-                    `;
-                }
-
-                // Disable action button
-                const actionCell = row.querySelector('.action-cell');
-                if (actionCell) {
-                    actionCell.innerHTML = `
-                        <span class="text-xs text-gray-400 italic">Out of stock</span>
-                    `;
-                }
-
-                showToast('info', `Batch ${batch.lot_number} is now out of stock.`);
-
-                // Optionally remove row after 3 seconds
-                setTimeout(() => {
-                    row.style.transition = 'opacity 0.5s ease';
-                    row.style.opacity = '0';
-                    setTimeout(() => {
-                        row.remove();
-                        // If no rows left, show empty message
-                        const tbody = document.getElementById('batch-table-body');
-                        if (tbody && tbody.children.length === 0) {
-                            tbody.innerHTML = `
-                                <tr>
-                                    <td colspan="6" class="px-6 py-8 text-center text-slate-500">
-                                        No batches available. Please receive new stock.
-                                    </td>
-                                </tr>
-                            `;
-                        }
-                    }, 500);
-                }, 2000);
-            } else if (result.remaining_batch) {
-                // Update with new batch info
-                const lotElement = row.querySelector('.lot-number');
-                if (lotElement) {
-                    lotElement.textContent = result.remaining_batch.lot_number;
-                }
-            }
-        }
-    });
-}
 
 window.markAsExpired = function(batchId) {
     showToast('info', 'Mark expired feature coming soon...');

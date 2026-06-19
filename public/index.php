@@ -104,7 +104,10 @@ switch ($route) {
         AuthMiddleware::requireAuth();
         $dashboardContr->index();
         break;
-
+    case 'stock-dispatch' :
+        AuthMiddleware::requireAuth();
+        $stockContr->dispatch();
+        break;
     // US 1.1: Receive form (HTML)
     case 'stock-receive':
         AuthMiddleware::requireAuth();
