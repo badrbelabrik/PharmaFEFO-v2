@@ -283,4 +283,78 @@ class ApiStockController
             echo json_encode(['success' => false, 'error' => 'Failed to dispense medication']);
         }
     }
+
+    public function markExpired(): void
+    {
+        header('Content-Type: application/json');
+
+        // 1. Check authentication
+        if (!isset($_SESSION['user_id'])) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'error' => 'Unauthorized. Please login.']);
+            return;
+        }
+
+        // 2. Check role (Pharmacist+ only)
+        if (!in_array($_SESSION['user_role'], ['pharmacist', 'admin'])) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Access denied. Pharmacist role required.']);
+            return;
+        }
+
+        // 3. Get JSON input
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        if (!$input || empty($input['batch_id'])) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Batch ID required']);
+            return;
+        }
+
+        // 4. Find batch
+        $batch = $this->stockBatchRepo->findById((int)$input['batch_id']);
+
+        if (!$batch) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Batch not found']);
+            return;
+        }
+
+        // 5. Check if already expired
+        if ($batch->getStatus() === BatchStatus::EXPIRED) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Batch is already marked as expired']);
+            return;
+        }
+
+        // 6. Mark as expired
+        $success = $this->stockBatchRepo->markAsExpired($batch);
+
+        if ($success) {
+            // 7. Create notification
+            $this->stockBatchRepo->createNotification(
+                $batch->getId(),
+                "Batch {$batch->getLotNumber()} for {$batch->getProduct()->getName()} has been marked as expired and destroyed."
+            );
+
+            // 8. Return success response
+            echo json_encode([
+                'success' => true,
+                'message' => "✅ Batch {$batch->getLotNumber()} has been marked as expired and removed from stock.",
+                'batch' => [
+                    'id' => $batch->getId(),
+                    'lot_number' => $batch->getLotNumber(),
+                    'quantity' => 0,
+                    'status' => 'expired',
+                    'product' => [
+                        'id' => $batch->getProduct()->getId(),
+                        'name' => $batch->getProduct()->getName()
+                    ]
+                ]
+            ]);
+        } else {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Failed to mark batch as expired']);
+        }
+    }
 }
