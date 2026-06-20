@@ -357,4 +357,93 @@ class ApiStockController
             echo json_encode(['success' => false, 'error' => 'Failed to mark batch as expired']);
         }
     }
+    public function lossReport(): void
+    {
+        header('Content-Type: application/json');
+
+        // Check authentication
+        if (!isset($_SESSION['user_id'])) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            return;
+        }
+
+        // Check role - Admin only
+        if ($_SESSION['user_role'] !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Access denied. Admin role required.']);
+            return;
+        }
+
+        // Get date range from query parameters
+        $startDate = $_GET['start_date'] ?? date('Y-m-01');
+        $endDate = $_GET['end_date'] ?? date('Y-m-d');
+
+        try {
+            $start = new \DateTime($startDate);
+            $end = new \DateTime($endDate);
+
+            // Get expired batches
+            $expiredBatches = $this->stockBatchRepo->getExpiredBatches();
+
+            $totalLoss = 0;
+            $lossByProduct = [];
+
+            foreach ($expiredBatches as $batch) {
+                $lossValue = $batch->getQuantity() * $batch->getPurchasePrice();
+                $totalLoss += $lossValue;
+
+                $productName = $batch->getProduct()->getName();
+                if (!isset($lossByProduct[$productName])) {
+                    $lossByProduct[$productName] = [
+                        'name' => $productName,
+                        'quantity' => 0,
+                        'loss' => 0
+                    ];
+                }
+                $lossByProduct[$productName]['quantity'] += $batch->getQuantity();
+                $lossByProduct[$productName]['loss'] += $lossValue;
+            }
+
+            // Sort by loss descending
+            usort($lossByProduct, function($a, $b) {
+                return $b['loss'] <=> $a['loss'];
+            });
+
+            // Get monthly losses
+            $monthlyLosses = [];
+            for ($i = 11; $i >= 0; $i--) {
+                $month = date('M Y', strtotime("-$i months"));
+                $startDate = date('Y-m-01', strtotime("-$i months"));
+                $endDate = date('Y-m-t', strtotime("-$i months"));
+
+                $loss = $this->stockBatchRepo->getExpiredStockValue(
+                    new \DateTime($startDate),
+                    new \DateTime($endDate)
+                );
+
+                $monthlyLosses[] = [
+                    'month' => $month,
+                    'loss' => $loss
+                ];
+            }
+
+            echo json_encode([
+                'success' => true,
+                'data' => [
+                    'total_loss' => $totalLoss,
+                    'expired_count' => count($expiredBatches),
+                    'loss_by_product' => $lossByProduct,
+                    'monthly_losses' => $monthlyLosses,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate
+                ]
+            ]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+
 }

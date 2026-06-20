@@ -71,6 +71,10 @@ if ($route === 'api') {
             $apiDashboard->getStats();
             break;
 
+        case 'loss-report':
+            $apiStock->lossReport();
+            break;
+
         default:
             http_response_code(404);
             header('Content-Type: application/json');
@@ -116,6 +120,11 @@ switch ($route) {
         AuthMiddleware::requireAuth();
         RoleMiddleware::requireRole('preparer');
         $stockContr->receive();
+        break;
+    case 'reports':
+        AuthMiddleware::requireAuth();
+        RoleMiddleware::requireRole('admin');
+        $reportContr->financial();
         break;
 
     default:
