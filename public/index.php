@@ -42,6 +42,9 @@ if ($route === 'api') {
         case 'receive':
             $apiStock->receive();
             break;
+        case 'products':
+            $apiStock->getProducts();
+            break;
 
         // US 3.1: Async dispense (EPIC 3)
         case 'dispense':
@@ -104,11 +107,14 @@ switch ($route) {
         AuthMiddleware::requireAuth();
         $dashboardContr->index();
         break;
-
+    case 'stock-dispatch' :
+        AuthMiddleware::requireAuth();
+        $stockContr->dispatch();
+        break;
     // US 1.1: Receive form (HTML)
     case 'stock-receive':
         AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRoleHierarchy('preparer');
+        RoleMiddleware::requireRole('preparer');
         $stockContr->receive();
         break;
 

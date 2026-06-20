@@ -1,12 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PharmaFEFOV2\Controller\Api;
 
 use DateTime;
+use Exception;
 use PharmaFEFOV2\Entity\StockBatch;
 use PharmaFEFOV2\Enum\BatchStatus;
 use PharmaFEFOV2\Repository\ProductRepository;
 use PharmaFEFOV2\Repository\StockBatchRepository;
+use PharmaFEFOV2\Service\StockBatchService;
 
 class ApiStockController
 {
@@ -18,16 +22,66 @@ class ApiStockController
         $this->productRepo = new ProductRepository();
     }
 
+    /**
+     * GET /api?action=products
+     * Get all products for dropdown
+     */
+    public function getProducts(): void
+    {
+        // Check authentication
+        if (!isset($_SESSION['user_id'])) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            return;
+        }
+
+        try {
+            $products = $this->productRepo->findAll();
+
+            $data = array_map(function($product) {
+                return [
+                    'id' => $product->getId(),
+                    'name' => $product->getName(),
+                    'serial_number' => $product->getSerialNumber(),
+                    'description' => $product->getDescription()
+                ];
+            }, $products);
+
+            echo json_encode([
+                'success' => true,
+                'data' => $data,
+                'count' => count($data)
+            ]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Database error: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * POST /api?action=receive
+     * Receive new batch asynchronously
+     */
     public function receive(): void
     {
-        header('Content-Type: application/json');
-
+        // Check authentication
         if (!isset($_SESSION['user_id'])) {
             http_response_code(401);
             echo json_encode(['success' => false, 'error' => 'Unauthorized. Please login.']);
             return;
         }
 
+        // Check role (Preparer only)
+        if ($_SESSION['user_role'] !== 'preparer') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Access denied. Preparer role required.']);
+            return;
+        }
+
+        // Get JSON input
         $input = json_decode(file_get_contents('php://input'), true);
 
         if (!$input) {
@@ -36,6 +90,7 @@ class ApiStockController
             return;
         }
 
+        // Validate required fields
         $required = ['product_id', 'lot_number', 'expiration_date', 'quantity', 'purchase_price'];
         $errors = [];
 
@@ -51,6 +106,7 @@ class ApiStockController
             return;
         }
 
+        // Validate expiration date
         try {
             $expirationDate = new DateTime($input['expiration_date']);
             $today = new DateTime();
@@ -61,12 +117,13 @@ class ApiStockController
                 echo json_encode(['success' => false, 'error' => 'Expiration date must be in the future']);
                 return;
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Invalid expiration date format']);
             return;
         }
 
+        // Get product
         $product = $this->productRepo->findById((int)$input['product_id']);
         if (!$product) {
             http_response_code(404);
@@ -74,6 +131,7 @@ class ApiStockController
             return;
         }
 
+        // Create batch
         $batch = new StockBatch(
             $input['lot_number'],
             (int)$input['quantity'],
@@ -87,8 +145,8 @@ class ApiStockController
         $savedBatch = $this->stockBatchRepo->save($batch);
 
         if ($savedBatch) {
-            // 8. Create notification if expiring soon
-            $daysUntilExpiry = $batch->getDaysUntilExpiration();
+            // Create notification if expiring soon
+            $daysUntilExpiry = StockBatchService::getDaysUntilExpiration($batch);
             if ($daysUntilExpiry <= 90) {
                 $this->stockBatchRepo->createNotification(
                     $savedBatch->getId(),
@@ -96,15 +154,133 @@ class ApiStockController
                 );
             }
 
-            // 9. Return success response
             echo json_encode([
                 'success' => true,
                 'message' => "Batch {$input['lot_number']} received successfully!",
-                'batch' => $savedBatch->jsonSerialize()
+                'batch' => [
+                    'id' => $savedBatch->getId(),
+                    'lot_number' => $savedBatch->getLotNumber(),
+                    'quantity' => $savedBatch->getQuantity(),
+                    'expiration_date' => $savedBatch->getExpirationDate()->format('Y-m-d'),
+                    'product' => [
+                        'id' => $product->getId(),
+                        'name' => $product->getName()
+                    ]
+                ]
             ]);
         } else {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => 'Failed to save batch. Please try again.']);
+            echo json_encode(['success' => false, 'error' => 'Failed to save batch']);
+        }
+    }
+
+    public function dispense(): void
+    {
+        header('Content-Type: application/json');
+
+        // 1. Check authentication
+        if (!isset($_SESSION['user_id'])) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'error' => 'Unauthorized. Please login.']);
+            return;
+        }
+
+        // 2. Check role (Preparer+)
+        if (!in_array($_SESSION['user_role'], ['preparer', 'pharmacist', 'admin'])) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Access denied. Preparer role required.']);
+            return;
+        }
+
+        // 3. Get JSON input
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        if (!$input || empty($input['product_id'])) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Invalid request. Product ID required.']);
+            return;
+        }
+
+        $productId = (int)$input['product_id'];
+        $quantity = (int)($input['quantity'] ?? 1);
+
+        // 4. Validate quantity
+        if ($quantity <= 0) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Quantity must be greater than 0.']);
+            return;
+        }
+
+        // 5. Find earliest expiring batch (FEFO rule)
+        $batch = $this->stockBatchRepo->findEarliestExpiringBatch($productId);
+
+        if (!$batch) {
+            http_response_code(404);
+            echo json_encode([
+                'success' => false,
+                'error' => 'No stock available for this product',
+                'out_of_stock' => true
+            ]);
+            return;
+        }
+
+        // 6. Check if enough quantity
+        if ($quantity > $batch->getQuantity()) {
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'error' => "Insufficient stock. Only {$batch->getQuantity()} units available.",
+                'available_quantity' => $batch->getQuantity()
+            ]);
+            return;
+        }
+
+        // 7. Dispense (decrement quantity)
+        $success = $this->stockBatchRepo->dispense($batch, $quantity);
+
+        if ($success) {
+            // 8. Check if batch is now out of stock
+            $isOutOfStock = $batch->getQuantity() <= 0;
+
+            // 9. Get remaining batch if any (FEFO rule for next dispense)
+            $remainingBatch = null;
+            if (!$isOutOfStock) {
+                $remainingBatch = $this->stockBatchRepo->findEarliestExpiringBatch($productId);
+            }
+
+            // 10. Check low stock alert
+            if ($batch->getQuantity() <= 5 && $batch->getQuantity() > 0) {
+                $this->stockBatchRepo->createNotification(
+                    $batch->getId(),
+                    "Low stock alert: {$batch->getProduct()->getName()} (Lot: {$batch->getLotNumber()}) has only {$batch->getQuantity()} units remaining."
+                );
+            }
+
+            // 11. Return success response
+            echo json_encode([
+                'success' => true,
+                'message' => "Dispensed {$quantity} unit(s) of {$batch->getProduct()->getName()}",
+                'dispensed_quantity' => $quantity,
+                'batch' => [
+                    'id' => $batch->getId(),
+                    'lot_number' => $batch->getLotNumber(),
+                    'quantity' => $batch->getQuantity(),
+                    'expiration_date' => $batch->getExpirationDate()->format('F j, Y'),
+                    'days_until_expiration' => StockBatchService::getDaysUntilExpiration($batch),
+                    'criticality' => StockBatchService::getCriticalityLevel($batch)
+                ],
+                'out_of_stock' => $isOutOfStock,
+                'remaining_batch' => $remainingBatch ? [
+                    'id' => $remainingBatch->getId(),
+                    'lot_number' => $remainingBatch->getLotNumber(),
+                    'quantity' => $remainingBatch->getQuantity(),
+                    'expiration_date' => $remainingBatch->getExpirationDate()->format('F j, Y'),
+                    'days_until_expiration' => StockBatchService::getDaysUntilExpiration($remainingBatch)
+                ] : null
+            ]);
+        } else {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Failed to dispense medication']);
         }
     }
 }
