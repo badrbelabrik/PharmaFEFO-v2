@@ -106,5 +106,3 @@ require_once __DIR__ . '/../layout/sidebar.php';
 <div id="toast-container" class="fixed bottom-4 right-4 space-y-2 z-50"></div>
 
 <script src="../../PharmaFEFO-v2/public/js/dashboard.js"></script>
-</body>
-</html>
