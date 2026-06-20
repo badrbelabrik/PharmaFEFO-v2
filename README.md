@@ -72,9 +72,6 @@ L'application permet de :
 ## 🏗️ Architecture du Projet
 
 Le projet suit une architecture **MVC (Model View Controller)** avec une séparation Web/API.
-## 🏗️ Architecture du projet
-
-Le projet suit une architecture MVC (Model View Controller).
 
 pharmafefo/
 ├── config/
@@ -178,8 +175,7 @@ Les données sont chargées dynamiquement via des endpoints API RESTful :
 ![pharmafefo-class-diagram.png](docs/pharmafefo-class-diagram.png)
 # diagramme ERD
 ![pharmafefo-erd-diagram.png](docs/pharmafefo-erd-diagram.png)
-## 👨‍💻 Auteur
-Projet réalisé dans le cadre de la formation Développeur Web et Web Mobile (DWWM).
+
 
 ## 🚀 Installation
 
@@ -197,6 +193,9 @@ cp .env.example .env
 
 # 4. Lancer l'application
 http://localhost/PharmaFEFO/public/index.php
+
+## 👨‍💻 Auteur
+Projet réalisé dans le cadre de la formation Développeur Web et Web Mobile (DWWM).
 
 Nom : badr belabrik
 
