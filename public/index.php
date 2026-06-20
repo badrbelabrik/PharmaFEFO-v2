@@ -6,8 +6,6 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/../config/autoloader.php';
 
-
-
 use Controller\Web\DashboardController;
 use Controller\Web\AdminController;
 use Controller\Web\AuthController;
@@ -18,7 +16,6 @@ use PharmaFEFOV2\Controller\Api\ApiDashboardController;
 use PharmaFEFOV2\Controller\Api\ApiStockController;
 use PharmaFEFOV2\Middleware\AuthMiddleware;
 use PharmaFEFOV2\Middleware\RoleMiddleware;
-
 
 $route = $_GET['route'] ?? 'home';
 $apiAction = $_GET['action'] ?? '';
@@ -32,13 +29,13 @@ $adminContr = new AdminController();
 
 $apiStock = new ApiStockController();
 $apiDashboard = new ApiDashboardController();
+
 // ============================================
 // API ROUTES (Return JSON only)
 // ============================================
 if ($route === 'api') {
-
     switch ($apiAction) {
-        // US 1.1: Async stock reception
+
         case 'receive':
             $apiStock->receive();
             break;
@@ -46,29 +43,31 @@ if ($route === 'api') {
             $apiStock->getProducts();
             break;
 
-        // US 3.1: Async dispense (EPIC 3)
         case 'dispense':
             $apiStock->dispense();
             break;
 
-        // US 4.1: Async mark expired (EPIC 4)
         case 'expired':
             $apiStock->markExpired();
             break;
 
-        // Bonus: Supplier return
         case 'return':
             $apiStock->returnBatch();
             break;
 
-        // US 2.1: Get filtered batches
+
         case 'batches':
             $apiDashboard->getBatches();
             break;
 
-        // US 2.2: Get dashboard stats
+
         case 'stats':
             $apiDashboard->getStats();
+            break;
+
+        // Admin only
+        case 'loss-report':
+            $apiStock->lossReport();
             break;
 
         default:
@@ -84,12 +83,8 @@ if ($route === 'api') {
 // WEB ROUTES (Return HTML)
 // ============================================
 
-$authContr = new AuthController();
-$homeContr = new HomeController();
-$dashboardContr = new DashboardController();
-$stockContr = new StockController();
-
 switch ($route) {
+    // ========== PUBLIC ROUTES ==========
     case 'home':
         $homeContr->index();
         break;
@@ -98,6 +93,7 @@ switch ($route) {
         $authContr->login();
         break;
 
+    // ========== AUTHENTICATED ROUTES ==========
     case 'logout':
         AuthMiddleware::requireAuth();
         $authContr->logout();
@@ -107,17 +103,42 @@ switch ($route) {
         AuthMiddleware::requireAuth();
         $dashboardContr->index();
         break;
-    case 'stock-dispatch' :
-        AuthMiddleware::requireAuth();
-        $stockContr->dispatch();
-        break;
-    // US 1.1: Receive form (HTML)
+
+
     case 'stock-receive':
         AuthMiddleware::requireAuth();
-        RoleMiddleware::requireRole('preparer');
+        RoleMiddleware::requireAnyRole(['preparer', 'pharmacist', 'admin']);
         $stockContr->receive();
         break;
 
+    // ========== EPIC 3: FEFO Dispensing (US 3.1) ==========
+    case 'stock-dispatch':
+        AuthMiddleware::requireAuth();
+        RoleMiddleware::requireAnyRole(['preparer', 'pharmacist', 'admin']);
+        $stockContr->dispatch();
+        break;
+
+
+    case 'stock-alerts':
+        AuthMiddleware::requireAuth();
+        RoleMiddleware::requireAnyRole(['pharmacist', 'admin']);
+        $stockContr->alerts();
+        break;
+
+    case 'stock-expired':
+        AuthMiddleware::requireAuth();
+        RoleMiddleware::requireAnyRole(['pharmacist', 'admin']);
+        $stockContr->markAsExpired();
+        break;
+
+    case 'stock-return':
+        AuthMiddleware::requireAuth();
+        RoleMiddleware::requireAnyRole(['pharmacist', 'admin']);
+        $stockContr->returnToSupplier();
+        break;
+
+
+    // ========== 404 ERROR ==========
     default:
         http_response_code(404);
         require_once __DIR__ . '/../templates/errors/404.php';

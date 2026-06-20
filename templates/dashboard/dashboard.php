@@ -2,8 +2,14 @@
 $currentPage = 'dashboard';
 $userRole = $_SESSION['user_role'] ?? 'preparer';
 $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? 'User');
+
+error_log("📊 Dashboard - User role from session: " . $userRole);
 require_once __DIR__ . '/../layout/sidebar.php';
 ?>
+<script>
+    window.userRole = '<?= htmlspecialchars($userRole) ?>';
+    console.log('👤 User role set from PHP:', window.userRole);
+</script>
 <main class="flex-grow p-8 overflow-y-auto">
     <header class="flex justify-between items-center pb-6 border-b border-slate-200 mb-8">
         <div>

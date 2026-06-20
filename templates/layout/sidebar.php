@@ -1,6 +1,7 @@
 <?php
 $userRole = $_SESSION['user_role'] ?? 'preparer';
 $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?? 'User');
+$currentPage = $currentPage ?? 'dashboard';
 ?>
 <!DOCTYPE html>
 <html lang="en" class="h-full bg-slate-100">
@@ -20,40 +21,68 @@ $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?
         </div>
 
         <!-- Navigation -->
-        <nav class="space-y-1 flex-1">
-            <a href="index.php?route=dashboard" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg <?= ($currentPage ?? '') === 'dashboard' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:bg-slate-800' ?> transition-colors">
+        <nav class="space-y-1 flex-1 overflow-y-auto">
+
+            <!-- ========== EPIC 1 & 2: Dashboard (ALL ROLES) ========== -->
+            <a href="index.php?route=dashboard"
+               class="flex items-center space-x-3 px-3 py-2.5 rounded-lg <?= $currentPage === 'dashboard' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:bg-slate-800' ?> transition-colors">
                 <span>📊</span> <span>Dashboard</span>
             </a>
 
-            <a href="index.php?route=stock-receive" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg <?= ($currentPage ?? '') === 'receive' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:bg-slate-800' ?> transition-colors">
-                <span>📥</span> <span>Stock Ingestion</span>
-            </a>
-
-            <a href="index.php?route=stock-dispatch" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg <?= ($currentPage ?? '') === 'dispatch' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:bg-slate-800' ?> transition-colors">
-                <span>📤</span> <span>Dispense Medicine</span>
-            </a>
-
-            <!-- Only for Pharmacist and Admin -->
-            <?php if (in_array($userRole, ['pharmacist', 'admin'])): ?>
-                <a href="index.php?route=stock-alerts" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg <?= ($currentPage ?? '') === 'alerts' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:bg-slate-800' ?> transition-colors">
-                    <span>⚠️</span> <span>Expiry Alerts</span>
-                </a>
-                <a href="index.php?route=reports" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg <?= ($currentPage ?? '') === 'reports' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:bg-slate-800' ?> transition-colors">
-                    <span>📉</span> <span>Reports</span>
+            <!-- ========== EPIC 1: Stock Ingestion (Preparer, Pharmacist, Admin) ========== -->
+            <?php if ($userRole === 'preparer' || $userRole === 'pharmacist' || $userRole === 'admin'): ?>
+                <a href="index.php?route=stock-receive"
+                   class="flex items-center space-x-3 px-3 py-2.5 rounded-lg <?= $currentPage === 'receive' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:bg-slate-800' ?> transition-colors">
+                    <span>📥</span> <span>Stock Ingestion</span>
                 </a>
             <?php endif; ?>
 
-            <!-- Only for Admin -->
+            <!-- ========== EPIC 3: Dispense Medicine (Preparer, Pharmacist, Admin) ========== -->
+            <?php if ($userRole === 'preparer' || $userRole === 'pharmacist' || $userRole === 'admin'): ?>
+                <a href="index.php?route=stock-dispatch"
+                   class="flex items-center space-x-3 px-3 py-2.5 rounded-lg <?= $currentPage === 'dispatch' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:bg-slate-800' ?> transition-colors">
+                    <span>📤</span> <span>Dispense Medicine</span>
+                </a>
+            <?php endif; ?>
+
+            <!-- ========== EPIC 2: Expiry Alerts (Pharmacist, Admin ONLY) ========== -->
+            <?php if ($userRole === 'pharmacist' || $userRole === 'admin'): ?>
+                <a href="index.php?route=stock-alerts"
+                   class="flex items-center space-x-3 px-3 py-2.5 rounded-lg <?= $currentPage === 'alerts' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:bg-slate-800' ?> transition-colors">
+                    <span>⚠️</span> <span>Expiry Alerts</span>
+                </a>
+            <?php endif; ?>
+
+            <!-- ========== EPIC 4: Financial Reports (ADMIN ONLY) ========== -->
+            <?php if ($userRole === 'admin'): ?>
+                <a href="index.php?route=reports"
+                   class="flex items-center space-x-3 px-3 py-2.5 rounded-lg <?= $currentPage === 'reports' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:bg-slate-800' ?> transition-colors">
+                    <span>📊</span> <span>Financial Reports</span>
+                </a>
+            <?php endif; ?>
+
+            <!-- ========== EPIC 4: Supplier Returns (Pharmacist, Admin ONLY) ========== -->
+            <?php if ($userRole === 'pharmacist' || $userRole === 'admin'): ?>
+                <a href="index.php?route=stock-return"
+                   class="flex items-center space-x-3 px-3 py-2.5 rounded-lg <?= $currentPage === 'returns' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:bg-slate-800' ?> transition-colors">
+                    <span>🔄</span> <span>Supplier Returns</span>
+                </a>
+            <?php endif; ?>
+
+            <!-- ========== ADMIN SECTION ========== -->
             <?php if ($userRole === 'admin'): ?>
                 <div class="pt-4 mt-4 border-t border-slate-800">
-                    <p class="px-3 py-2 text-xs text-slate-500 uppercase">Admin</p>
-                    <a href="index.php?route=admin-users" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors">
+                    <p class="px-3 py-2 text-xs text-slate-500 uppercase tracking-wider">Administration</p>
+                    <a href="index.php?route=admin-users"
+                       class="flex items-center space-x-3 px-3 py-2.5 rounded-lg <?= $currentPage === 'admin-users' ? 'bg-emerald-600 text-white' : 'text-slate-300 hover:bg-slate-800' ?> transition-colors">
                         <span>👥</span> <span>Manage Users</span>
                     </a>
                 </div>
             <?php endif; ?>
+
         </nav>
 
+        <!-- User Info & Logout -->
         <div class="border-t border-slate-800 pt-4 px-2 space-y-3">
             <div class="flex items-center space-x-3">
                 <div class="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center text-sm font-bold text-white uppercase shrink-0">
@@ -61,7 +90,7 @@ $currentUser = $_SESSION['user_firstname'] . ' ' . ($_SESSION['user_lastname'] ?
                 </div>
                 <div class="truncate">
                     <p class="text-sm font-semibold truncate max-w-[150px]"><?= htmlspecialchars($currentUser ?? 'User') ?></p>
-                    <p class="text-xs text-slate-400 capitalize"><?= htmlspecialchars($userRole ?? 'Preparator') ?></p>
+                    <p class="text-xs text-slate-400 capitalize"><?= htmlspecialchars($userRole ?? 'Preparer') ?></p>
                 </div>
             </div>
 

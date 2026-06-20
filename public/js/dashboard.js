@@ -74,7 +74,9 @@ function renderBatchTable(batches) {
         return;
     }
 
-    const userRole = document.body.dataset.userRole || 'preparer';
+    // ✅ Get user role from session (via data attribute or meta tag)
+    const userRole = document.body.dataset.userRole || window.userRole || 'preparer';
+    console.log('👤 User role detected:', userRole);
 
     tbody.innerHTML = batches.map(batch => {
         const daysLeft = batch.days_until_expiration || 0;
@@ -182,16 +184,21 @@ function getActionButtons(batch, userRole) {
         return `<span class="text-xs text-gray-400 italic">Out of stock</span>`;
     }
 
-    if (daysLeft <= 30 && (userRole === 'pharmacist' || userRole === 'admin')) {
+    // ✅ Show "Mark Expired" ONLY for pharmacist/admin AND critical batches
+    const isPharmacistOrAdmin = (userRole === 'pharmacist' || userRole === 'admin');
+    const isCritical = daysLeft <= 30;
+
+    if (isCritical && isPharmacistOrAdmin) {
         return `
             <button onclick="markAsExpired(${batch.id})" 
+                    data-batch-id="${batch.id}"
                     class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors">
                 🗑️ Mark Expired
             </button>
             <button onclick="dispenseMedicine(${batch.product.id})" 
                     data-product-id="${batch.product.id}"
                     class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors ml-2">
-                💊 Dispense
+                💊 Dispense 1
             </button>
         `;
     } else {
@@ -199,7 +206,7 @@ function getActionButtons(batch, userRole) {
             <button onclick="dispenseMedicine(${batch.product.id})" 
                     data-product-id="${batch.product.id}"
                     class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors">
-                💊 Dispense
+                💊 Dispense 1
             </button>
         `;
     }
@@ -250,7 +257,7 @@ window.dispenseMedicine = async function(productId) {
             },
             body: JSON.stringify({
                 product_id: productId,
-                quantity: 1  // Always dispense 1 unit
+                quantity: 1
             })
         });
 
@@ -280,13 +287,8 @@ window.dispenseMedicine = async function(productId) {
         }
 
         if (result.success) {
-            // Show success message
-            showToast('success', `✅ Dispensed 1 unit of ${result.batch.lot_number}`);
-
-            // US 3.1: Update UI without page reload
+            showToast('success', `✅ Dispensed 1 unit`);
             updateBatchQuantity(result);
-
-            // Refresh stats
             await fetchStats();
         } else {
             showToast('error', result.error || 'Failed to dispense medication');
@@ -295,11 +297,10 @@ window.dispenseMedicine = async function(productId) {
         console.error('Dispense error:', error);
         showToast('error', 'Network error. Please check your connection and try again.');
     } finally {
-        // Restore buttons
         const buttons = document.querySelectorAll(`[data-product-id="${productId}"]`);
         buttons.forEach(btn => {
             btn.disabled = false;
-            btn.textContent = '💊 Dispense';
+            btn.textContent = '💊 Dispense 1';
             btn.classList.remove('opacity-50', 'cursor-not-allowed');
         });
     }
@@ -307,32 +308,24 @@ window.dispenseMedicine = async function(productId) {
 
 function updateBatchQuantity(result) {
     const batch = result.batch;
-
-    // Find the row containing this batch
     const rows = document.querySelectorAll('#batch-table-body tr');
-
     let rowFound = false;
 
     rows.forEach(row => {
-        // Find the lot number in this row
         const lotElement = row.querySelector('.lot-number');
         if (lotElement && lotElement.textContent === batch.lot_number) {
             rowFound = true;
 
-            // Update quantity cell
             const qtyCell = row.querySelector('.quantity-cell');
             if (qtyCell) {
                 qtyCell.textContent = batch.quantity + ' units';
             }
 
-            // If out of stock, gray out or remove the row
             if (result.out_of_stock) {
-                // US 3.1: Row disappears or grays out
                 row.style.opacity = '0.5';
                 row.style.backgroundColor = '#f3f4f6';
                 row.classList.add('line-through');
 
-                // Add "Out of Stock" badge
                 const statusCell = row.querySelector('.status-cell');
                 if (statusCell) {
                     statusCell.innerHTML = `
@@ -342,7 +335,6 @@ function updateBatchQuantity(result) {
                     `;
                 }
 
-                // Disable action button
                 const actionCell = row.querySelector('.action-cell');
                 if (actionCell) {
                     actionCell.innerHTML = `
@@ -352,13 +344,11 @@ function updateBatchQuantity(result) {
 
                 showToast('info', `Batch ${batch.lot_number} is now out of stock.`);
 
-                // Remove row after 3 seconds
                 setTimeout(() => {
                     row.style.transition = 'opacity 0.5s ease';
                     row.style.opacity = '0';
                     setTimeout(() => {
                         row.remove();
-                        // If no rows left, show empty message
                         const tbody = document.getElementById('batch-table-body');
                         if (tbody && tbody.children.length === 0) {
                             tbody.innerHTML = `
@@ -372,13 +362,11 @@ function updateBatchQuantity(result) {
                     }, 500);
                 }, 2000);
             } else if (result.remaining_batch) {
-                // Update with new batch info (FEFO rule - next batch)
                 const lotElement = row.querySelector('.lot-number');
                 if (lotElement) {
                     lotElement.textContent = result.remaining_batch.lot_number;
                 }
 
-                // Update expiration date
                 const expCell = row.querySelector('.expiration-cell');
                 if (expCell) {
                     const daysLeft = result.remaining_batch.days_until_expiration;
@@ -390,7 +378,6 @@ function updateBatchQuantity(result) {
                         (daysLeft <= 90 && daysLeft > 30 ? `<span class="ml-2 text-xs text-amber-600">(${daysLeft} days left)</span>` : '');
                 }
 
-                // Update status badge
                 const statusCell = row.querySelector('.status-cell');
                 if (statusCell) {
                     const daysLeft = result.remaining_batch.days_until_expiration;
@@ -408,18 +395,127 @@ function updateBatchQuantity(result) {
         }
     });
 
-    // If row not found, refresh the table
     if (!rowFound) {
         console.log('Batch row not found, refreshing table...');
         fetchBatches();
     }
 }
 
-// ========== US 4.1: Mark Expired ==========
+// ========== US 4.1: Mark Expired (REAL IMPLEMENTATION) ==========
+window.markAsExpired = async function(batchId) {
+    // Show confirmation dialog
+    if (!confirm('⚠️ Are you sure you want to mark this batch as expired?\n\nThis action cannot be undone and the batch will be removed from stock.')) {
+        return;
+    }
 
-window.markAsExpired = function(batchId) {
-    showToast('info', 'Mark expired feature coming soon...');
+    try {
+        // Show loading state on the button
+        const buttons = document.querySelectorAll(`[data-batch-id="${batchId}"]`);
+        buttons.forEach(btn => {
+            btn.disabled = true;
+            btn.textContent = '⏳ Processing...';
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+        });
+
+        showToast('info', '⏳ Processing...');
+
+        // Send request to API
+        const response = await fetch(`${API_BASE}&action=expired`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ batch_id: batchId })
+        });
+
+        const result = await response.json();
+
+        // Handle response
+        if (response.status === 401) {
+            showToast('error', 'Session expired. Please login again.');
+            window.location.href = '/index.php?route=login';
+            return;
+        }
+
+        if (response.status === 403) {
+            showToast('error', 'Access denied. Pharmacist role required.');
+            return;
+        }
+
+        if (!response.ok) {
+            throw new Error(result.error || `HTTP ${response.status}`);
+        }
+
+        if (result.success) {
+            // Show success message
+            showToast('success', result.message);
+
+            // US 4.1: Remove row from dashboard without page reload
+            removeExpiredBatch(batchId);
+
+            // Refresh stats
+            await fetchStats();
+        } else {
+            showToast('error', result.error || 'Failed to mark batch as expired');
+        }
+    } catch (error) {
+        console.error('Mark expired error:', error);
+        showToast('error', 'Network error. Please check your connection and try again.');
+    } finally {
+        // Restore buttons
+        const buttons = document.querySelectorAll(`[data-batch-id="${batchId}"]`);
+        buttons.forEach(btn => {
+            btn.disabled = false;
+            btn.textContent = '🗑️ Mark Expired';
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        });
+    }
 };
+
+/**
+ * US 4.1: Remove expired batch row from DOM without page reload
+ */
+function removeExpiredBatch(batchId) {
+    // Find the row containing this batch
+    const rows = document.querySelectorAll('#batch-table-body tr');
+
+    let rowFound = false;
+
+    rows.forEach(row => {
+        const batchIdAttr = row.dataset.batchId;
+        if (batchIdAttr && parseInt(batchIdAttr) === batchId) {
+            rowFound = true;
+
+            // Fade out and remove the row
+            row.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+            row.style.opacity = '0';
+            row.style.transform = 'translateX(-20px)';
+
+            setTimeout(() => {
+                row.remove();
+
+                // If no rows left, show empty message
+                const tbody = document.getElementById('batch-table-body');
+                if (tbody && tbody.children.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="6" class="px-6 py-8 text-center text-slate-500">
+                                No batches available. Please receive new stock.
+                            </td>
+                        </tr>
+                    `;
+                }
+            }, 600);
+        }
+    });
+
+    // If row not found, refresh the table
+    if (!rowFound) {
+        console.log('Batch row not found, refreshing table...');
+        fetchBatches();
+    }
+}
 
 // ========== Initialization ==========
 document.addEventListener('DOMContentLoaded', () => {
