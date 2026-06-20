@@ -178,20 +178,21 @@ class ApiStockController
     {
         header('Content-Type: application/json');
 
-        // Check authentication
+        // 1. Check authentication
         if (!isset($_SESSION['user_id'])) {
             http_response_code(401);
             echo json_encode(['success' => false, 'error' => 'Unauthorized. Please login.']);
             return;
         }
 
-        // Check role (Preparer+)
+        // 2. Check role (Preparer+)
         if (!in_array($_SESSION['user_role'], ['preparer', 'pharmacist', 'admin'])) {
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => 'Access denied. Preparer role required.']);
             return;
         }
 
+        // 3. Get JSON input
         $input = json_decode(file_get_contents('php://input'), true);
 
         if (!$input || empty($input['product_id'])) {
@@ -203,14 +204,14 @@ class ApiStockController
         $productId = (int)$input['product_id'];
         $quantity = (int)($input['quantity'] ?? 1);
 
-        // Validate quantity
+        // 4. Validate quantity
         if ($quantity <= 0) {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Quantity must be greater than 0.']);
             return;
         }
 
-        // Find earliest expiring batch (FEFO rule)
+        // 5. Find earliest expiring batch (FEFO rule)
         $batch = $this->stockBatchRepo->findEarliestExpiringBatch($productId);
 
         if (!$batch) {
@@ -223,7 +224,7 @@ class ApiStockController
             return;
         }
 
-        // Check if enough quantity
+        // 6. Check if enough quantity
         if ($quantity > $batch->getQuantity()) {
             http_response_code(400);
             echo json_encode([
@@ -234,20 +235,20 @@ class ApiStockController
             return;
         }
 
-        // Dispense (decrement quantity)
+        // 7. Dispense (decrement quantity)
         $success = $this->stockBatchRepo->dispense($batch, $quantity);
 
         if ($success) {
-            // Check if batch is now out of stock
+            // 8. Check if batch is now out of stock
             $isOutOfStock = $batch->getQuantity() <= 0;
 
-            // Get remaining batch if any (FEFO rule for next dispense)
+            // 9. Get remaining batch if any (FEFO rule for next dispense)
             $remainingBatch = null;
             if (!$isOutOfStock) {
                 $remainingBatch = $this->stockBatchRepo->findEarliestExpiringBatch($productId);
             }
 
-            // Check low stock alert
+            // 10. Check low stock alert
             if ($batch->getQuantity() <= 5 && $batch->getQuantity() > 0) {
                 $this->stockBatchRepo->createNotification(
                     $batch->getId(),
@@ -255,7 +256,7 @@ class ApiStockController
                 );
             }
 
-            // Return success response
+            // 11. Return success response
             echo json_encode([
                 'success' => true,
                 'message' => "Dispensed {$quantity} unit(s) of {$batch->getProduct()->getName()}",
@@ -265,7 +266,8 @@ class ApiStockController
                     'lot_number' => $batch->getLotNumber(),
                     'quantity' => $batch->getQuantity(),
                     'expiration_date' => $batch->getExpirationDate()->format('F j, Y'),
-                    'days_until_expiration' => StockBatchService::getDaysUntilExpiration($batch)
+                    'days_until_expiration' => StockBatchService::getDaysUntilExpiration($batch),
+                    'criticality' => StockBatchService::getCriticalityLevel($batch)
                 ],
                 'out_of_stock' => $isOutOfStock,
                 'remaining_batch' => $remainingBatch ? [

@@ -2,7 +2,8 @@
  * PharmaFEFO - Dashboard JavaScript
  * Calls API endpoints to fill the view
  */
-console.log("this is the right script")
+console.log("✅ Dashboard script loaded");
+
 const API_BASE = 'http://localhost/PharmaFEFO-v2/public/index.php?route=api';
 
 // State
@@ -95,7 +96,7 @@ function renderBatchTable(batches) {
                 <td class="quantity-cell px-6 py-4 font-medium text-slate-900">
                     ${batch.quantity} units
                 </td>
-                <td class="px-6 py-4 ${dateClass}">
+                <td class="expiration-cell px-6 py-4 ${dateClass}">
                     ${escapeHtml(batch.expiration_formatted)}
                     ${daysLeft <= 30 ? `<span class="ml-2 text-xs text-red-600">(${daysLeft} days left)</span>` : ''}
                     ${daysLeft <= 90 && daysLeft > 30 ? `<span class="ml-2 text-xs text-amber-600">(${daysLeft} days left)</span>` : ''}
@@ -187,14 +188,19 @@ function getActionButtons(batch, userRole) {
                     class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors">
                 🗑️ Mark Expired
             </button>
+            <button onclick="dispenseMedicine(${batch.product.id})" 
+                    data-product-id="${batch.product.id}"
+                    class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors ml-2">
+                💊 Dispense
+            </button>
         `;
     } else {
-        // US 3.1: Redirect to dispatch page with product_id
         return `
-            <a href="/index.php?route=stock-dispatch&product_id=${batch.product.id}" 
-               class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors">
+            <button onclick="dispenseMedicine(${batch.product.id})" 
+                    data-product-id="${batch.product.id}"
+                    class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors">
                 💊 Dispense
-            </a>
+            </button>
         `;
     }
 }
@@ -212,7 +218,8 @@ function showToast(type, message) {
     const colors = {
         success: 'bg-emerald-500',
         error: 'bg-red-500',
-        info: 'bg-blue-500'
+        info: 'bg-blue-500',
+        warning: 'bg-amber-500'
     };
 
     const toast = document.createElement('div');
@@ -222,6 +229,197 @@ function showToast(type, message) {
     container.appendChild(toast);
     setTimeout(() => toast.remove(), 4000);
 }
+
+// ========== US 3.1: FEFO Dispensing ==========
+window.dispenseMedicine = async function(productId) {
+    try {
+        // Show loading state on the button
+        const buttons = document.querySelectorAll(`[data-product-id="${productId}"]`);
+        buttons.forEach(btn => {
+            btn.disabled = true;
+            btn.textContent = '⏳ Processing...';
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+        });
+
+        // Send request to API - automatically dispense 1 unit
+        const response = await fetch(`${API_BASE}&action=dispense`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                product_id: productId,
+                quantity: 1  // Always dispense 1 unit
+            })
+        });
+
+        const result = await response.json();
+
+        // Handle response
+        if (response.status === 401) {
+            showToast('error', 'Session expired. Please login again.');
+            window.location.href = '/index.php?route=login';
+            return;
+        }
+
+        if (response.status === 403) {
+            showToast('error', 'Access denied. You need Preparer role to dispense.');
+            return;
+        }
+
+        if (response.status === 404 && result.out_of_stock) {
+            showToast('error', 'No stock available for this product.');
+            await fetchBatches();
+            await fetchStats();
+            return;
+        }
+
+        if (!response.ok) {
+            throw new Error(result.error || `HTTP ${response.status}`);
+        }
+
+        if (result.success) {
+            // Show success message
+            showToast('success', `✅ Dispensed 1 unit of ${result.batch.lot_number}`);
+
+            // US 3.1: Update UI without page reload
+            updateBatchQuantity(result);
+
+            // Refresh stats
+            await fetchStats();
+        } else {
+            showToast('error', result.error || 'Failed to dispense medication');
+        }
+    } catch (error) {
+        console.error('Dispense error:', error);
+        showToast('error', 'Network error. Please check your connection and try again.');
+    } finally {
+        // Restore buttons
+        const buttons = document.querySelectorAll(`[data-product-id="${productId}"]`);
+        buttons.forEach(btn => {
+            btn.disabled = false;
+            btn.textContent = '💊 Dispense';
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        });
+    }
+};
+
+function updateBatchQuantity(result) {
+    const batch = result.batch;
+
+    // Find the row containing this batch
+    const rows = document.querySelectorAll('#batch-table-body tr');
+
+    let rowFound = false;
+
+    rows.forEach(row => {
+        // Find the lot number in this row
+        const lotElement = row.querySelector('.lot-number');
+        if (lotElement && lotElement.textContent === batch.lot_number) {
+            rowFound = true;
+
+            // Update quantity cell
+            const qtyCell = row.querySelector('.quantity-cell');
+            if (qtyCell) {
+                qtyCell.textContent = batch.quantity + ' units';
+            }
+
+            // If out of stock, gray out or remove the row
+            if (result.out_of_stock) {
+                // US 3.1: Row disappears or grays out
+                row.style.opacity = '0.5';
+                row.style.backgroundColor = '#f3f4f6';
+                row.classList.add('line-through');
+
+                // Add "Out of Stock" badge
+                const statusCell = row.querySelector('.status-cell');
+                if (statusCell) {
+                    statusCell.innerHTML = `
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200">
+                            Out of Stock
+                        </span>
+                    `;
+                }
+
+                // Disable action button
+                const actionCell = row.querySelector('.action-cell');
+                if (actionCell) {
+                    actionCell.innerHTML = `
+                        <span class="text-xs text-gray-400 italic">Out of stock</span>
+                    `;
+                }
+
+                showToast('info', `Batch ${batch.lot_number} is now out of stock.`);
+
+                // Remove row after 3 seconds
+                setTimeout(() => {
+                    row.style.transition = 'opacity 0.5s ease';
+                    row.style.opacity = '0';
+                    setTimeout(() => {
+                        row.remove();
+                        // If no rows left, show empty message
+                        const tbody = document.getElementById('batch-table-body');
+                        if (tbody && tbody.children.length === 0) {
+                            tbody.innerHTML = `
+                                <tr>
+                                    <td colspan="6" class="px-6 py-8 text-center text-slate-500">
+                                        No batches available. Please receive new stock.
+                                    </td>
+                                </tr>
+                            `;
+                        }
+                    }, 500);
+                }, 2000);
+            } else if (result.remaining_batch) {
+                // Update with new batch info (FEFO rule - next batch)
+                const lotElement = row.querySelector('.lot-number');
+                if (lotElement) {
+                    lotElement.textContent = result.remaining_batch.lot_number;
+                }
+
+                // Update expiration date
+                const expCell = row.querySelector('.expiration-cell');
+                if (expCell) {
+                    const daysLeft = result.remaining_batch.days_until_expiration;
+                    const dateClass = daysLeft <= 30 ? 'text-red-700 font-medium' :
+                        (daysLeft <= 90 ? 'text-amber-700 font-medium' : 'text-slate-600');
+                    expCell.className = `px-6 py-4 ${dateClass}`;
+                    expCell.innerHTML = result.remaining_batch.expiration_date +
+                        (daysLeft <= 30 ? `<span class="ml-2 text-xs text-red-600">(${daysLeft} days left)</span>` : '') +
+                        (daysLeft <= 90 && daysLeft > 30 ? `<span class="ml-2 text-xs text-amber-600">(${daysLeft} days left)</span>` : '');
+                }
+
+                // Update status badge
+                const statusCell = row.querySelector('.status-cell');
+                if (statusCell) {
+                    const daysLeft = result.remaining_batch.days_until_expiration;
+                    const badgeClass = daysLeft <= 30 ? 'bg-red-100 text-red-800 border-red-200' :
+                        (daysLeft <= 90 ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200');
+                    const statusLabel = daysLeft <= 30 ? 'Critical (< 30 days)' :
+                        (daysLeft <= 90 ? 'Warning (< 90 days)' : 'Healthy (> 90 days)');
+                    statusCell.innerHTML = `
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${badgeClass} border">
+                            ${statusLabel}
+                        </span>
+                    `;
+                }
+            }
+        }
+    });
+
+    // If row not found, refresh the table
+    if (!rowFound) {
+        console.log('Batch row not found, refreshing table...');
+        fetchBatches();
+    }
+}
+
+// ========== US 4.1: Mark Expired ==========
+
+window.markAsExpired = function(batchId) {
+    showToast('info', 'Mark expired feature coming soon...');
+};
 
 // ========== Initialization ==========
 document.addEventListener('DOMContentLoaded', () => {
@@ -244,7 +442,3 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchStats();
     }, 30000);
 });
-
-window.markAsExpired = function(batchId) {
-    showToast('info', 'Mark expired feature coming soon...');
-};
